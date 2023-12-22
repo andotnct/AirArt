@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>AerialDrawing</title>
+  <title>AirArt</title>
   <style>body { padding: 0; margin: 0; }</style>
 </head>
 
@@ -7065,7 +7065,7 @@ var $elm$core$Task$perform = F2(
 				A2($elm$core$Task$map, toMessage, task)));
 	});
 var $elm$browser$Browser$element = _Browser_element;
-var $author$project$AerialDrawing$ResizeWindow = F2(
+var $author$project$AirArt$ResizeWindow = F2(
 	function (a, b) {
 		return {$: 'ResizeWindow', a: a, b: b};
 	});
@@ -7088,7 +7088,7 @@ var $elm$core$Basics$negate = function (n) {
 };
 var $elm$core$Basics$round = _Basics_round;
 var $ianmackenzie$elm_units$Quantity$zero = $ianmackenzie$elm_units$Quantity$Quantity(0);
-var $author$project$AerialDrawing$init = function (_v0) {
+var $author$project$AirArt$init = function (_v0) {
 	return _Utils_Tuple2(
 		{
 			azimuth: $ianmackenzie$elm_units$Angle$degrees(-90),
@@ -7103,7 +7103,7 @@ var $author$project$AerialDrawing$init = function (_v0) {
 			function (_v1) {
 				var viewport = _v1.viewport;
 				return A2(
-					$author$project$AerialDrawing$ResizeWindow,
+					$author$project$AirArt$ResizeWindow,
 					$ianmackenzie$elm_units$Pixels$int(
 						$elm$core$Basics$round(viewport.width)),
 					$ianmackenzie$elm_units$Pixels$int(
@@ -7112,7 +7112,7 @@ var $author$project$AerialDrawing$init = function (_v0) {
 			$elm$browser$Browser$Dom$getViewport));
 };
 var $elm$core$Platform$Sub$batch = _Platform_batch;
-var $author$project$AerialDrawing$MouseMove = F2(
+var $author$project$AirArt$MouseMove = F2(
 	function (a, b) {
 		return {$: 'MouseMove', a: a, b: b};
 	});
@@ -7121,9 +7121,9 @@ var $elm$json$Json$Decode$float = _Json_decodeFloat;
 var $ianmackenzie$elm_units$Pixels$float = function (numPixels) {
 	return $ianmackenzie$elm_units$Quantity$Quantity(numPixels);
 };
-var $author$project$AerialDrawing$mouseMoveDecoder = A3(
+var $author$project$AirArt$mouseMoveDecoder = A3(
 	$elm$json$Json$Decode$map2,
-	$author$project$AerialDrawing$MouseMove,
+	$author$project$AirArt$MouseMove,
 	A2(
 		$elm$json$Json$Decode$field,
 		'movementX',
@@ -7549,7 +7549,7 @@ var $elm$browser$Browser$Events$onResize = function (func) {
 				A2($elm$json$Json$Decode$field, 'innerWidth', $elm$json$Json$Decode$int),
 				A2($elm$json$Json$Decode$field, 'innerHeight', $elm$json$Json$Decode$int))));
 };
-var $author$project$AerialDrawing$subscriptions = function (model) {
+var $author$project$AirArt$subscriptions = function (model) {
 	return $elm$core$Platform$Sub$batch(
 		_List_fromArray(
 			[
@@ -7557,11 +7557,11 @@ var $author$project$AerialDrawing$subscriptions = function (model) {
 				F2(
 					function (width, height) {
 						return A2(
-							$author$project$AerialDrawing$ResizeWindow,
+							$author$project$AirArt$ResizeWindow,
 							$ianmackenzie$elm_units$Pixels$int(width),
 							$ianmackenzie$elm_units$Pixels$int(height));
 					})),
-				$elm$browser$Browser$Events$onMouseMove($author$project$AerialDrawing$mouseMoveDecoder)
+				$elm$browser$Browser$Events$onMouseMove($author$project$AirArt$mouseMoveDecoder)
 			]));
 };
 var $elm$core$Platform$Cmd$batch = _Platform_batch;
@@ -7570,7 +7570,7 @@ var $ianmackenzie$elm_units$Pixels$toFloat = function (_v0) {
 	var numPixels = _v0.a;
 	return numPixels;
 };
-var $author$project$AerialDrawing$update = F2(
+var $author$project$AirArt$update = F2(
 	function (msg, model) {
 		if (msg.$ === 'ResizeWindow') {
 			var width = msg.a;
@@ -10019,7 +10019,7 @@ var $ianmackenzie$elm_3d_scene$Scene3d$unlit = function (_arguments) {
 		});
 };
 var $avh4$elm_color$Color$yellow = A4($avh4$elm_color$Color$RgbaSpace, 237 / 255, 212 / 255, 0 / 255, 1.0);
-var $author$project$AerialDrawing$view = function (model) {
+var $author$project$AirArt$view = function (model) {
 	var square4 = A5(
 		$ianmackenzie$elm_3d_scene$Scene3d$quad,
 		$ianmackenzie$elm_3d_scene$Scene3d$Material$color($avh4$elm_color$Color$yellow),
@@ -10068,12 +10068,12 @@ var $author$project$AerialDrawing$view = function (model) {
 				[square, square2, square3, square4])
 		});
 };
-var $author$project$AerialDrawing$main = $elm$browser$Browser$element(
-	{init: $author$project$AerialDrawing$init, subscriptions: $author$project$AerialDrawing$subscriptions, update: $author$project$AerialDrawing$update, view: $author$project$AerialDrawing$view});
-_Platform_export({'AerialDrawing':{'init':$author$project$AerialDrawing$main(
+var $author$project$AirArt$main = $elm$browser$Browser$element(
+	{init: $author$project$AirArt$init, subscriptions: $author$project$AirArt$subscriptions, update: $author$project$AirArt$update, view: $author$project$AirArt$view});
+_Platform_export({'AirArt':{'init':$author$project$AirArt$main(
 	$elm$json$Json$Decode$succeed(_Utils_Tuple0))(0)}});}(this));
 
-  var app = Elm.AerialDrawing.init({ node: document.getElementById("elm") });
+  var app = Elm.AirArt.init({ node: document.getElementById("elm") });
 }
 catch (e)
 {
