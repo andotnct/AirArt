@@ -1,4 +1,4 @@
-module AerialDrawing exposing (main)
+module AirArt exposing (main)
 
 import Angle
 import Browser
@@ -21,9 +21,18 @@ import Vector3d exposing (Vector3d)
 import Viewpoint3d
 
 
+
+-- MAIN
+
+
 main : Program () Model Msg
 main =
-    Browser.element { init = init, update = update, subscriptions = subscriptions, view = view }
+    Browser.element
+        { init = init
+        , update = update
+        , subscriptions = subscriptions
+        , view = view
+        }
 
 
 
