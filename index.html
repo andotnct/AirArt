@@ -39,6 +39,16 @@
 				console.error("Element not found");
 			}
 		});
+
+		app.ports.exitPointerLock.subscribe(() => {
+			document.exitPointerLock = document.exitPointerLock ||
+				document.mozExitPointerLock ||
+				document.webkitExitPointerLock;
+
+			if (document.exitPointerLock) {
+				document.exitPointerLock();
+			}
+		});
 	</script>
 </body>
 
