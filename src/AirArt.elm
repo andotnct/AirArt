@@ -23,10 +23,6 @@ import Vector3d exposing (Vector3d)
 import Viewpoint3d
 
 
-
---PORTS
-
-
 port requestPointerLock : () -> Cmd msg
 
 
@@ -52,7 +48,7 @@ init : () -> ( Model, Cmd Msg )
 init () =
     ( { width = Quantity.zero
       , height = Quantity.zero
-      , eyePoint = { x = 0.0, y = 0.0, z = 0.0 }
+      , eyePoint = { x = 0.0, y = 0.0, z = 50.0 }
       , focalVector = { x = 1.0, y = 0.0, z = 0.0 }
       , keyStatus = { up = False, down = False, left = False, right = False, space = False, shift = False }
       , isClick = False
@@ -119,7 +115,7 @@ type Msg
     | KeyChanged Bool String
     | DisableIsClick
     | TimeDelta Float
-    | MouseMove (Quantity Float Pixels.Pixels) (Quantity Float Pixels.Pixels)
+    | ViewMove (Quantity Float Pixels.Pixels) (Quantity Float Pixels.Pixels)
     | DrawPoints (Quantity Float Pixels.Pixels) (Quantity Float Pixels.Pixels)
 
 
@@ -138,21 +134,39 @@ update msg model =
 
         TimeDelta dt ->
             let
+                toRightVector =
+                    { x = model.focalVector.x * cos (degrees 90) - model.focalVector.y * sin (degrees 90)
+                    , y = model.focalVector.x * sin (degrees 90) + model.focalVector.y * cos (degrees 90)
+                    }
+
+                toLeftVector =
+                    { x = model.focalVector.x * cos (degrees -90) - model.focalVector.y * sin (degrees -90)
+                    , y = model.focalVector.x * sin (degrees -90) + model.focalVector.y * cos (degrees -90)
+                    }
+
                 position =
                     if model.keyStatus.up == True then
                         { x = model.eyePoint.x + model.focalVector.x, y = model.eyePoint.y + model.focalVector.y, z = model.eyePoint.z + model.focalVector.z }
 
+                    else if model.keyStatus.down == True then
+                        { x = model.eyePoint.x - model.focalVector.x, y = model.eyePoint.y - model.focalVector.y, z = model.eyePoint.z - model.focalVector.z }
+
+                    else if model.keyStatus.left == True then
+                        { x = model.eyePoint.x + toRightVector.x, y = model.eyePoint.y + toRightVector.y, z = model.eyePoint.z }
+
+                    else if model.keyStatus.right == True then
+                        { x = model.eyePoint.x + toLeftVector.x, y = model.eyePoint.y + toLeftVector.y, z = model.eyePoint.z }
+
+                    else if model.keyStatus.space == True then
+                        { x = model.eyePoint.x, y = model.eyePoint.y, z = model.eyePoint.z + 1 }
+
+                    else if model.keyStatus.shift == True then
+                        { x = model.eyePoint.x, y = model.eyePoint.y, z = model.eyePoint.z - 1 }
+
                     else
                         { x = model.eyePoint.x, y = model.eyePoint.y, z = model.eyePoint.z }
-
-                focus =
-                    if model.keyStatus.down == True then
-                        { x = model.focalVector.x + model.focalVector.x, y = model.focalVector.y + model.focalVector.y, z = model.focalVector.z + model.focalVector.z }
-
-                    else
-                        { x = model.focalVector.x, y = model.focalVector.y, z = model.focalVector.z }
             in
-            ( { model | eyePoint = position, focalVector = focus }, Cmd.none )
+            ( { model | eyePoint = position }, Cmd.none )
 
         KeyChanged isDown key ->
             ( { model | keyStatus = updateKeyStatus isDown key model.keyStatus }, Cmd.none )
@@ -160,7 +174,7 @@ update msg model =
         DisableIsClick ->
             ( { model | isClick = False }, Cmd.none )
 
-        MouseMove dx dy ->
+        ViewMove dx dy ->
             let
                 dxFloat =
                     Pixels.toFloat dx
@@ -168,20 +182,16 @@ update msg model =
                 dyFloat =
                     Pixels.toFloat dy
 
+                angle2D =
+                    -(dxFloat / 100)
+
+                angle3D =
+                    dyFloat / 100
+
                 newFocalVector =
-                    { x =
-                        if model.focalVector.y > 0.0 then
-                            model.focalVector.x + dxFloat / 200
-
-                        else
-                            model.focalVector.x - dxFloat / 200
-                    , y =
-                        if model.focalVector.x > 0.0 then
-                            model.focalVector.y - dxFloat / 200
-
-                        else
-                            model.focalVector.y + dxFloat / 200
-                    , z = model.focalVector.z - dyFloat / 200
+                    { x = model.focalVector.x * cos angle2D - model.focalVector.y * sin angle2D
+                    , y = model.focalVector.x * sin angle2D + model.focalVector.y * cos angle2D
+                    , z = clamp -1.0 1.0 model.focalVector.z - angle3D
                     }
             in
             ( { model | focalVector = newFocalVector }, Cmd.none )
@@ -192,22 +202,6 @@ update msg model =
 
             else
                 ( model, Cmd.none )
-
-
-
--- SUBSCRIPTIONS
-
-
-subscriptions : Model -> Sub Msg
-subscriptions model =
-    Sub.batch
-        [ Browser.Events.onResize (\width height -> ResizeWindow (Pixels.int width) (Pixels.int height))
-        , Browser.Events.onAnimationFrameDelta TimeDelta
-        , Browser.Events.onMouseMove drawPointsDecoder
-        , Browser.Events.onMouseMove mouseMoveDecoder
-        , Browser.Events.onKeyUp (Decode.map (KeyChanged False) (Decode.field "key" Decode.string))
-        , Browser.Events.onKeyDown (Decode.map (KeyChanged True) (Decode.field "key" Decode.string))
-        ]
 
 
 
@@ -279,27 +273,23 @@ view model =
 
 
 
+-- SUBSCRIPTIONS
+
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    Sub.batch
+        [ Browser.Events.onResize (\width height -> ResizeWindow (Pixels.int width) (Pixels.int height))
+        , Browser.Events.onAnimationFrameDelta TimeDelta
+        , Browser.Events.onMouseMove drawPointsDecoder
+        , Browser.Events.onMouseMove viewMoveDecoder
+        , Browser.Events.onKeyUp (Decode.map (KeyChanged False) (Decode.field "key" Decode.string))
+        , Browser.Events.onKeyDown (Decode.map (KeyChanged True) (Decode.field "key" Decode.string))
+        ]
+
+
+
 -- FUNCTIONS
-
-
-mouseMoveDecoder : Decoder Msg
-mouseMoveDecoder =
-    Decode.oneOf
-        [ Decode.map2
-            MouseMove
-            (Decode.field "movementX" (Decode.map Pixels.float Decode.float))
-            (Decode.field "movementY" (Decode.map Pixels.float Decode.float))
-        ]
-
-
-drawPointsDecoder : Decoder Msg
-drawPointsDecoder =
-    Decode.oneOf
-        [ Decode.map2
-            DrawPoints
-            (Decode.field "movementX" (Decode.map Pixels.float Decode.float))
-            (Decode.field "movementY" (Decode.map Pixels.float Decode.float))
-        ]
 
 
 updateKeyStatus : Bool -> String -> KeyStatusModel -> KeyStatusModel
@@ -350,3 +340,27 @@ createSphereEntities points n =
 
     else
         []
+
+
+
+-- DECODERS
+
+
+viewMoveDecoder : Decoder Msg
+viewMoveDecoder =
+    Decode.oneOf
+        [ Decode.map2
+            ViewMove
+            (Decode.field "movementX" (Decode.map Pixels.float Decode.float))
+            (Decode.field "movementY" (Decode.map Pixels.float Decode.float))
+        ]
+
+
+drawPointsDecoder : Decoder Msg
+drawPointsDecoder =
+    Decode.oneOf
+        [ Decode.map2
+            DrawPoints
+            (Decode.field "movementX" (Decode.map Pixels.float Decode.float))
+            (Decode.field "movementY" (Decode.map Pixels.float Decode.float))
+        ]

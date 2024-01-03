@@ -7067,7 +7067,7 @@ var $ianmackenzie$elm_units$Quantity$zero = $ianmackenzie$elm_units$Quantity$Qua
 var $author$project$AirArt$init = function (_v0) {
 	return _Utils_Tuple2(
 		{
-			eyePoint: {x: 0.0, y: 0.0, z: 0.0},
+			eyePoint: {x: 0.0, y: 0.0, z: 50.0},
 			focalVector: {x: 1.0, y: 0.0, z: 0.0},
 			height: $ianmackenzie$elm_units$Quantity$zero,
 			isClick: false,
@@ -7113,25 +7113,6 @@ var $author$project$AirArt$drawPointsDecoder = $elm$json$Json$Decode$oneOf(
 			A3(
 			$elm$json$Json$Decode$map2,
 			$author$project$AirArt$DrawPoints,
-			A2(
-				$elm$json$Json$Decode$field,
-				'movementX',
-				A2($elm$json$Json$Decode$map, $ianmackenzie$elm_units$Pixels$float, $elm$json$Json$Decode$float)),
-			A2(
-				$elm$json$Json$Decode$field,
-				'movementY',
-				A2($elm$json$Json$Decode$map, $ianmackenzie$elm_units$Pixels$float, $elm$json$Json$Decode$float)))
-		]));
-var $author$project$AirArt$MouseMove = F2(
-	function (a, b) {
-		return {$: 'MouseMove', a: a, b: b};
-	});
-var $author$project$AirArt$mouseMoveDecoder = $elm$json$Json$Decode$oneOf(
-	_List_fromArray(
-		[
-			A3(
-			$elm$json$Json$Decode$map2,
-			$author$project$AirArt$MouseMove,
 			A2(
 				$elm$json$Json$Decode$field,
 				'movementX',
@@ -7693,6 +7674,25 @@ var $elm$browser$Browser$Events$onResize = function (func) {
 				A2($elm$json$Json$Decode$field, 'innerHeight', $elm$json$Json$Decode$int))));
 };
 var $elm$json$Json$Decode$string = _Json_decodeString;
+var $author$project$AirArt$ViewMove = F2(
+	function (a, b) {
+		return {$: 'ViewMove', a: a, b: b};
+	});
+var $author$project$AirArt$viewMoveDecoder = $elm$json$Json$Decode$oneOf(
+	_List_fromArray(
+		[
+			A3(
+			$elm$json$Json$Decode$map2,
+			$author$project$AirArt$ViewMove,
+			A2(
+				$elm$json$Json$Decode$field,
+				'movementX',
+				A2($elm$json$Json$Decode$map, $ianmackenzie$elm_units$Pixels$float, $elm$json$Json$Decode$float)),
+			A2(
+				$elm$json$Json$Decode$field,
+				'movementY',
+				A2($elm$json$Json$Decode$map, $ianmackenzie$elm_units$Pixels$float, $elm$json$Json$Decode$float)))
+		]));
 var $author$project$AirArt$subscriptions = function (model) {
 	return $elm$core$Platform$Sub$batch(
 		_List_fromArray(
@@ -7707,7 +7707,7 @@ var $author$project$AirArt$subscriptions = function (model) {
 					})),
 				$elm$browser$Browser$Events$onAnimationFrameDelta($author$project$AirArt$TimeDelta),
 				$elm$browser$Browser$Events$onMouseMove($author$project$AirArt$drawPointsDecoder),
-				$elm$browser$Browser$Events$onMouseMove($author$project$AirArt$mouseMoveDecoder),
+				$elm$browser$Browser$Events$onMouseMove($author$project$AirArt$viewMoveDecoder),
 				$elm$browser$Browser$Events$onKeyUp(
 				A2(
 					$elm$json$Json$Decode$map,
@@ -7720,6 +7720,18 @@ var $author$project$AirArt$subscriptions = function (model) {
 					A2($elm$json$Json$Decode$field, 'key', $elm$json$Json$Decode$string)))
 			]));
 };
+var $elm$core$Basics$clamp = F3(
+	function (low, high, number) {
+		return (_Utils_cmp(number, low) < 0) ? low : ((_Utils_cmp(number, high) > 0) ? high : number);
+	});
+var $elm$core$Basics$cos = _Basics_cos;
+var $elm$core$Basics$pi = _Basics_pi;
+var $elm$core$Basics$degrees = function (angleInDegrees) {
+	return (angleInDegrees * $elm$core$Basics$pi) / 180;
+};
+var $elm$core$Basics$negate = function (n) {
+	return -n;
+};
 var $elm$core$Platform$Cmd$batch = _Platform_batch;
 var $elm$core$Platform$Cmd$none = $elm$core$Platform$Cmd$batch(_List_Nil);
 var $elm$json$Json$Encode$null = _Json_encodeNull;
@@ -7728,6 +7740,7 @@ var $author$project$AirArt$requestPointerLock = _Platform_outgoingPort(
 	function ($) {
 		return $elm$json$Json$Encode$null;
 	});
+var $elm$core$Basics$sin = _Basics_sin;
 var $ianmackenzie$elm_units$Pixels$toFloat = function (_v0) {
 	var numPixels = _v0.a;
 	return numPixels;
@@ -7782,12 +7795,27 @@ var $author$project$AirArt$update = F2(
 					$author$project$AirArt$requestPointerLock(_Utils_Tuple0));
 			case 'TimeDelta':
 				var dt = msg.a;
-				var position = model.keyStatus.up ? {x: model.eyePoint.x + model.focalVector.x, y: model.eyePoint.y + model.focalVector.y, z: model.eyePoint.z + model.focalVector.z} : {x: model.eyePoint.x, y: model.eyePoint.y, z: model.eyePoint.z};
-				var focus = model.keyStatus.down ? {x: model.focalVector.x + model.focalVector.x, y: model.focalVector.y + model.focalVector.y, z: model.focalVector.z + model.focalVector.z} : {x: model.focalVector.x, y: model.focalVector.y, z: model.focalVector.z};
+				var toRightVector = {
+					x: (model.focalVector.x * $elm$core$Basics$cos(
+						$elm$core$Basics$degrees(90))) - (model.focalVector.y * $elm$core$Basics$sin(
+						$elm$core$Basics$degrees(90))),
+					y: (model.focalVector.x * $elm$core$Basics$sin(
+						$elm$core$Basics$degrees(90))) + (model.focalVector.y * $elm$core$Basics$cos(
+						$elm$core$Basics$degrees(90)))
+				};
+				var toLeftVector = {
+					x: (model.focalVector.x * $elm$core$Basics$cos(
+						$elm$core$Basics$degrees(-90))) - (model.focalVector.y * $elm$core$Basics$sin(
+						$elm$core$Basics$degrees(-90))),
+					y: (model.focalVector.x * $elm$core$Basics$sin(
+						$elm$core$Basics$degrees(-90))) + (model.focalVector.y * $elm$core$Basics$cos(
+						$elm$core$Basics$degrees(-90)))
+				};
+				var position = model.keyStatus.up ? {x: model.eyePoint.x + model.focalVector.x, y: model.eyePoint.y + model.focalVector.y, z: model.eyePoint.z + model.focalVector.z} : (model.keyStatus.down ? {x: model.eyePoint.x - model.focalVector.x, y: model.eyePoint.y - model.focalVector.y, z: model.eyePoint.z - model.focalVector.z} : (model.keyStatus.left ? {x: model.eyePoint.x + toRightVector.x, y: model.eyePoint.y + toRightVector.y, z: model.eyePoint.z} : (model.keyStatus.right ? {x: model.eyePoint.x + toLeftVector.x, y: model.eyePoint.y + toLeftVector.y, z: model.eyePoint.z} : (model.keyStatus.space ? {x: model.eyePoint.x, y: model.eyePoint.y, z: model.eyePoint.z + 1} : (model.keyStatus.shift ? {x: model.eyePoint.x, y: model.eyePoint.y, z: model.eyePoint.z - 1} : {x: model.eyePoint.x, y: model.eyePoint.y, z: model.eyePoint.z})))));
 				return _Utils_Tuple2(
 					_Utils_update(
 						model,
-						{eyePoint: position, focalVector: focus}),
+						{eyePoint: position}),
 					$elm$core$Platform$Cmd$none);
 			case 'KeyChanged':
 				var isDown = msg.a;
@@ -7805,15 +7833,17 @@ var $author$project$AirArt$update = F2(
 						model,
 						{isClick: false}),
 					$elm$core$Platform$Cmd$none);
-			case 'MouseMove':
+			case 'ViewMove':
 				var dx = msg.a;
 				var dy = msg.b;
 				var dyFloat = $ianmackenzie$elm_units$Pixels$toFloat(dy);
 				var dxFloat = $ianmackenzie$elm_units$Pixels$toFloat(dx);
+				var angle3D = dyFloat / 100;
+				var angle2D = -(dxFloat / 100);
 				var newFocalVector = {
-					x: (model.focalVector.y > 0.0) ? (model.focalVector.x + (dxFloat / 200)) : (model.focalVector.x - (dxFloat / 200)),
-					y: (model.focalVector.x > 0.0) ? (model.focalVector.y - (dxFloat / 200)) : (model.focalVector.y + (dxFloat / 200)),
-					z: model.focalVector.z - (dyFloat / 200)
+					x: (model.focalVector.x * $elm$core$Basics$cos(angle2D)) - (model.focalVector.y * $elm$core$Basics$sin(angle2D)),
+					y: (model.focalVector.x * $elm$core$Basics$sin(angle2D)) + (model.focalVector.y * $elm$core$Basics$cos(angle2D)),
+					z: A3($elm$core$Basics$clamp, -1.0, 1.0, model.focalVector.z) - angle3D
 				};
 				return _Utils_Tuple2(
 					_Utils_update(
@@ -7929,10 +7959,6 @@ var $ianmackenzie$elm_3d_scene$Scene3d$Types$PbrMaterial = F5(
 		return {$: 'PbrMaterial', a: a, b: b, c: c, d: d, e: e};
 	});
 var $ianmackenzie$elm_3d_scene$Scene3d$Types$VerticalNormal = {$: 'VerticalNormal'};
-var $elm$core$Basics$clamp = F3(
-	function (low, high, number) {
-		return (_Utils_cmp(number, low) < 0) ? low : ((_Utils_cmp(number, high) > 0) ? high : number);
-	});
 var $ianmackenzie$elm_3d_scene$Scene3d$Types$LinearRgb = function (a) {
 	return {$: 'LinearRgb', a: a};
 };
@@ -9346,7 +9372,6 @@ var $elm$core$List$append = F2(
 var $elm$core$List$concat = function (lists) {
 	return A3($elm$core$List$foldr, $elm$core$List$append, _List_Nil, lists);
 };
-var $elm$core$Basics$cos = _Basics_cos;
 var $ianmackenzie$elm_units$Angle$cos = function (_v0) {
 	var angle = _v0.a;
 	return $elm$core$Basics$cos(angle);
@@ -9427,7 +9452,6 @@ var $ianmackenzie$elm_3d_scene$Scene3d$Mesh$cullBackFaces = function (mesh) {
 			return mesh;
 	}
 };
-var $elm$core$Basics$pi = _Basics_pi;
 var $ianmackenzie$elm_units$Angle$radians = function (numRadians) {
 	return $ianmackenzie$elm_units$Quantity$Quantity(numRadians);
 };
@@ -9544,9 +9568,6 @@ var $ianmackenzie$elm_units$Quantity$multiplyBy = F2(
 		var value = _v0.a;
 		return $ianmackenzie$elm_units$Quantity$Quantity(scale * value);
 	});
-var $elm$core$Basics$negate = function (n) {
-	return -n;
-};
 var $ianmackenzie$elm_units$Quantity$plus = F2(
 	function (_v0, _v1) {
 		var y = _v0.a;
@@ -9559,7 +9580,6 @@ var $ianmackenzie$elm_units$Quantity$ratio = F2(
 		var y = _v1.a;
 		return x / y;
 	});
-var $elm$core$Basics$sin = _Basics_sin;
 var $ianmackenzie$elm_units$Angle$sin = function (_v0) {
 	var angle = _v0.a;
 	return $elm$core$Basics$sin(angle);
