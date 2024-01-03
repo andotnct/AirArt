@@ -7,7 +7,7 @@ import Browser.Events
 import Camera3d
 import Color
 import Direction3d
-import Html exposing (Html, div)
+import Html exposing (Html, div, pre)
 import Html.Attributes exposing (id, style)
 import Html.Events exposing (onMouseDown, onMouseUp)
 import Json.Decode as Decode exposing (Decoder)
@@ -24,6 +24,9 @@ import Viewpoint3d
 
 
 port requestPointerLock : () -> Cmd msg
+
+
+port exitPointerLock : () -> Cmd msg
 
 
 
@@ -54,6 +57,7 @@ init () =
       , isClick = False
       , points = []
       , numPoints = 0
+      , isOptionOpen = False
       }
     , Task.perform
         (\{ viewport } ->
@@ -78,6 +82,7 @@ type alias Model =
     , isClick : Bool
     , points : List PointModel
     , numPoints : Int
+    , isOptionOpen : Bool
     }
 
 
@@ -117,6 +122,8 @@ type Msg
     | TimeDelta Float
     | ViewMove (Quantity Float Pixels.Pixels) (Quantity Float Pixels.Pixels)
     | DrawPoints (Quantity Float Pixels.Pixels) (Quantity Float Pixels.Pixels)
+    | OpenOptionModal
+    | CloseOptionModal
 
 
 
@@ -169,7 +176,11 @@ update msg model =
             ( { model | eyePoint = position }, Cmd.none )
 
         KeyChanged isDown key ->
-            ( { model | keyStatus = updateKeyStatus isDown key model.keyStatus }, Cmd.none )
+            if key == "e" then
+                ( { model | isOptionOpen = True }, exitPointerLock () )
+
+            else
+                ( { model | keyStatus = updateKeyStatus isDown key model.keyStatus }, Cmd.none )
 
         DisableIsClick ->
             ( { model | isClick = False }, Cmd.none )
@@ -202,6 +213,12 @@ update msg model =
 
             else
                 ( model, Cmd.none )
+
+        OpenOptionModal ->
+            ( { model | isOptionOpen = True }, Cmd.none )
+
+        CloseOptionModal ->
+            ( { model | isOptionOpen = False }, requestPointerLock () )
 
 
 
@@ -256,6 +273,40 @@ view model =
                         }
                 , verticalFieldOfView = Angle.degrees 30
                 }
+
+        explainText =
+            pre
+                [ style "position" "absolute"
+                , style "top" "10%"
+                , style "left" "10%"
+                , style "background-color" "#fff"
+                , style "transform" "translate(-50%, -50%)"
+                , style "padding" "20px"
+                , style "z-index" "9999"
+                , style "font-weight" "bold"
+                , style "font-size" "15px"
+                ]
+                [ Html.text "マウスクリックで操作開始\nEscで操作解除\nWASDで移動\nSpace/Shiftで上昇/下降\nクリック+マウス移動で点を描画\nEキーでオプション表示"
+                ]
+
+        optionModal =
+            if model.isOptionOpen == True then
+                pre
+                    [ style "position" "absolute"
+                    , style "top" "50%"
+                    , style "left" "50%"
+                    , style "background-color" "#fff"
+                    , style "transform" "translate(-50%, -50%)"
+                    , style "padding" "20px"
+                    , style "z-index" "9999"
+                    ]
+                    [ Html.text "オプション"
+                    , Html.button [ onMouseDown CloseOptionModal ] [ Html.text "Close" ]
+                    ]
+
+            else
+                div []
+                    []
     in
     div
         [ id "canvas"
@@ -269,6 +320,8 @@ view model =
             , background = Scene3d.transparentBackground
             , dimensions = ( model.width, model.height )
             }
+        , explainText
+        , optionModal
         ]
 
 

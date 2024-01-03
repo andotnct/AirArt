@@ -7071,6 +7071,7 @@ var $author$project$AirArt$init = function (_v0) {
 			focalVector: {x: 1.0, y: 0.0, z: 0.0},
 			height: $ianmackenzie$elm_units$Quantity$zero,
 			isClick: false,
+			isOptionOpen: false,
 			keyStatus: {down: false, left: false, right: false, shift: false, space: false, up: false},
 			numPoints: 0,
 			points: _List_Nil,
@@ -7729,12 +7730,17 @@ var $elm$core$Basics$pi = _Basics_pi;
 var $elm$core$Basics$degrees = function (angleInDegrees) {
 	return (angleInDegrees * $elm$core$Basics$pi) / 180;
 };
+var $elm$json$Json$Encode$null = _Json_encodeNull;
+var $author$project$AirArt$exitPointerLock = _Platform_outgoingPort(
+	'exitPointerLock',
+	function ($) {
+		return $elm$json$Json$Encode$null;
+	});
 var $elm$core$Basics$negate = function (n) {
 	return -n;
 };
 var $elm$core$Platform$Cmd$batch = _Platform_batch;
 var $elm$core$Platform$Cmd$none = $elm$core$Platform$Cmd$batch(_List_Nil);
-var $elm$json$Json$Encode$null = _Json_encodeNull;
 var $author$project$AirArt$requestPointerLock = _Platform_outgoingPort(
 	'requestPointerLock',
 	function ($) {
@@ -7820,7 +7826,11 @@ var $author$project$AirArt$update = F2(
 			case 'KeyChanged':
 				var isDown = msg.a;
 				var key = msg.b;
-				return _Utils_Tuple2(
+				return (key === 'e') ? _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{isOptionOpen: true}),
+					$author$project$AirArt$exitPointerLock(_Utils_Tuple0)) : _Utils_Tuple2(
 					_Utils_update(
 						model,
 						{
@@ -7850,7 +7860,7 @@ var $author$project$AirArt$update = F2(
 						model,
 						{focalVector: newFocalVector}),
 					$elm$core$Platform$Cmd$none);
-			default:
+			case 'DrawPoints':
 				var dx = msg.a;
 				var dy = msg.b;
 				return model.isClick ? _Utils_Tuple2(
@@ -7870,8 +7880,21 @@ var $author$project$AirArt$update = F2(
 									]))
 						}),
 					$elm$core$Platform$Cmd$none) : _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
+			case 'OpenOptionModal':
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{isOptionOpen: true}),
+					$elm$core$Platform$Cmd$none);
+			default:
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{isOptionOpen: false}),
+					$author$project$AirArt$requestPointerLock(_Utils_Tuple0));
 		}
 	});
+var $author$project$AirArt$CloseOptionModal = {$: 'CloseOptionModal'};
 var $author$project$AirArt$DisableIsClick = {$: 'DisableIsClick'};
 var $author$project$AirArt$RequestPointerLock = {$: 'RequestPointerLock'};
 var $avh4$elm_color$Color$RgbaSpace = F4(
@@ -7879,6 +7902,7 @@ var $avh4$elm_color$Color$RgbaSpace = F4(
 		return {$: 'RgbaSpace', a: a, b: b, c: c, d: d};
 	});
 var $avh4$elm_color$Color$blue = A4($avh4$elm_color$Color$RgbaSpace, 52 / 255, 101 / 255, 164 / 255, 1.0);
+var $elm$html$Html$button = _VirtualDom_node('button');
 var $ianmackenzie$elm_3d_scene$Scene3d$Types$Constant = function (a) {
 	return {$: 'Constant', a: a};
 };
@@ -10475,6 +10499,7 @@ var $ianmackenzie$elm_geometry$Direction3d$unsafe = function (givenComponents) {
 };
 var $ianmackenzie$elm_geometry$Direction3d$positiveZ = $ianmackenzie$elm_geometry$Direction3d$unsafe(
 	{x: 0, y: 0, z: 1});
+var $elm$html$Html$pre = _VirtualDom_node('pre');
 var $ianmackenzie$elm_geometry$BoundingBox3d$hullHelp = F7(
 	function (currentMinX, currentMaxX, currentMinY, currentMaxY, currentMinZ, currentMaxZ, points) {
 		hullHelp:
@@ -10933,6 +10958,10 @@ var $ianmackenzie$elm_3d_scene$Scene3d$quad = F5(
 		return A7($ianmackenzie$elm_3d_scene$Scene3d$Entity$quad, true, false, givenMaterial, p1, p2, p3, p4);
 	});
 var $avh4$elm_color$Color$red = A4($avh4$elm_color$Color$RgbaSpace, 204 / 255, 0 / 255, 0 / 255, 1.0);
+var $elm$virtual_dom$VirtualDom$style = _VirtualDom_style;
+var $elm$html$Html$Attributes$style = $elm$virtual_dom$VirtualDom$style;
+var $elm$virtual_dom$VirtualDom$text = _VirtualDom_text;
+var $elm$html$Html$text = $elm$virtual_dom$VirtualDom$text;
 var $ianmackenzie$elm_3d_scene$Scene3d$BackgroundColor = function (a) {
 	return {$: 'BackgroundColor', a: a};
 };
@@ -10980,8 +11009,6 @@ var $elm_explorations$webgl$WebGL$Internal$Stencil = function (a) {
 	return {$: 'Stencil', a: a};
 };
 var $elm_explorations$webgl$WebGL$stencil = $elm_explorations$webgl$WebGL$Internal$Stencil;
-var $elm$virtual_dom$VirtualDom$style = _VirtualDom_style;
-var $elm$html$Html$Attributes$style = $elm$virtual_dom$VirtualDom$style;
 var $elm$core$String$concat = function (strings) {
 	return A2($elm$core$String$join, '', strings);
 };
@@ -12119,6 +12146,50 @@ var $author$project$AirArt$view = function (model) {
 		A3($ianmackenzie$elm_geometry$Point3d$meters, 100, -100, -1),
 		A3($ianmackenzie$elm_geometry$Point3d$meters, 100, 100, -1),
 		A3($ianmackenzie$elm_geometry$Point3d$meters, -100, 100, -1));
+	var optionModal = model.isOptionOpen ? A2(
+		$elm$html$Html$pre,
+		_List_fromArray(
+			[
+				A2($elm$html$Html$Attributes$style, 'position', 'absolute'),
+				A2($elm$html$Html$Attributes$style, 'top', '50%'),
+				A2($elm$html$Html$Attributes$style, 'left', '50%'),
+				A2($elm$html$Html$Attributes$style, 'background-color', '#fff'),
+				A2($elm$html$Html$Attributes$style, 'transform', 'translate(-50%, -50%)'),
+				A2($elm$html$Html$Attributes$style, 'padding', '20px'),
+				A2($elm$html$Html$Attributes$style, 'z-index', '9999')
+			]),
+		_List_fromArray(
+			[
+				$elm$html$Html$text('オプション'),
+				A2(
+				$elm$html$Html$button,
+				_List_fromArray(
+					[
+						$elm$html$Html$Events$onMouseDown($author$project$AirArt$CloseOptionModal)
+					]),
+				_List_fromArray(
+					[
+						$elm$html$Html$text('Close')
+					]))
+			])) : A2($elm$html$Html$div, _List_Nil, _List_Nil);
+	var explainText = A2(
+		$elm$html$Html$pre,
+		_List_fromArray(
+			[
+				A2($elm$html$Html$Attributes$style, 'position', 'absolute'),
+				A2($elm$html$Html$Attributes$style, 'top', '10%'),
+				A2($elm$html$Html$Attributes$style, 'left', '10%'),
+				A2($elm$html$Html$Attributes$style, 'background-color', '#fff'),
+				A2($elm$html$Html$Attributes$style, 'transform', 'translate(-50%, -50%)'),
+				A2($elm$html$Html$Attributes$style, 'padding', '20px'),
+				A2($elm$html$Html$Attributes$style, 'z-index', '9999'),
+				A2($elm$html$Html$Attributes$style, 'font-weight', 'bold'),
+				A2($elm$html$Html$Attributes$style, 'font-size', '15px')
+			]),
+		_List_fromArray(
+			[
+				$elm$html$Html$text('マウスクリックで操作開始\nEscで操作解除\nWASDで移動\nSpace/Shiftで上昇/下降\nクリック+マウス移動で点を描画\nEキーでオプション表示')
+			]));
 	var camera = $ianmackenzie$elm_3d_camera$Camera3d$perspective(
 		{
 			verticalFieldOfView: $ianmackenzie$elm_units$Angle$degrees(30),
@@ -12149,7 +12220,9 @@ var $author$project$AirArt$view = function (model) {
 						_List_fromArray(
 							[square, square2, square3, square4, square5]),
 						A2($author$project$AirArt$createSphereEntities, model.points, model.numPoints))
-				})
+				}),
+				explainText,
+				optionModal
 			]));
 };
 var $author$project$AirArt$main = $elm$browser$Browser$element(
