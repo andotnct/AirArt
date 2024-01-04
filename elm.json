@@ -16,7 +16,8 @@
             "ianmackenzie/elm-3d-camera": "3.1.0",
             "ianmackenzie/elm-3d-scene": "1.0.2",
             "ianmackenzie/elm-geometry": "3.11.0",
-            "ianmackenzie/elm-units": "2.10.0"
+            "ianmackenzie/elm-units": "2.10.0",
+            "rtfeldman/elm-hex": "1.0.0"
         },
         "indirect": {
             "elm/random": "1.0.0",
