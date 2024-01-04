@@ -7,13 +7,14 @@ import Browser.Events
 import Camera3d
 import Color exposing (Color)
 import Direction3d
+import Hex
 import Html exposing (Html, div, pre)
-import Html.Attributes exposing (id, max, min, style, type_, value)
+import Html.Attributes exposing (id, style, type_, value)
 import Html.Events exposing (onInput, onMouseDown, onMouseUp)
 import Illuminance
 import Json.Decode as Decode exposing (Decoder)
 import Length
-import LuminousFlux exposing (LuminousFlux)
+import LuminousFlux
 import Pixels
 import Point3d
 import Quantity exposing (Quantity)
@@ -22,9 +23,9 @@ import Scene3d.Light as Light exposing (Chromaticity, Light)
 import Scene3d.Material as Material
 import SolidAngle
 import Sphere3d
+import String exposing (left)
 import Task
 import Temperature
-import Vector3d exposing (Vector3d)
 import Viewpoint3d
 
 
@@ -35,7 +36,13 @@ port exitPointerLock : () -> Cmd msg
 
 
 
--- MAIN
+-- #     #    #    ### #     #
+-- ##   ##   # #    #  ##    #
+-- # # # #  #   #   #  # #   #
+-- #  #  # #     #  #  #  #  #
+-- #     # #######  #  #   # #
+-- #     # #     #  #  #    ##
+-- #     # #     # ### #     #
 
 
 main : Program () Model Msg
@@ -49,7 +56,13 @@ main =
 
 
 
--- INIT
+-- ### #     # ### #######
+--  #  ##    #  #     #
+--  #  # #   #  #     #
+--  #  #  #  #  #     #
+--  #  #   # #  #     #
+--  #  #    ##  #     #
+-- ### #     # ###    #
 
 
 init : () -> ( Model, Cmd Msg )
@@ -90,7 +103,13 @@ init () =
 
 
 
--- MODEL
+-- #     # ####### ######  ####### #
+-- ##   ## #     # #     # #       #
+-- # # # # #     # #     # #       #
+-- #  #  # #     # #     # #####   #
+-- #     # #     # #     # #       #
+-- #     # #     # #     # #       #
+-- #     # ####### ######  ####### #######
 
 
 type alias Model =
@@ -142,7 +161,13 @@ type alias OptionModel =
 
 
 
--- MSG
+-- #     #  #####   #####
+-- ##   ## #     # #     #
+-- # # # # #       #
+-- #  #  #  #####  #  ####
+-- #     #       # #     #
+-- #     # #     # #     #
+-- #     #  #####   #####
 
 
 type Msg
@@ -163,7 +188,13 @@ type Msg
 
 
 
--- UPDATE
+-- #     # ######  ######     #    ####### #######
+-- #     # #     # #     #   # #      #    #
+-- #     # #     # #     #  #   #     #    #
+-- #     # ######  #     # #     #    #    #####
+-- #     # #       #     # #######    #    #
+-- #     # #       #     # #     #    #    #
+--  #####  #       ######  #     #    #    #######
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -328,7 +359,13 @@ update msg model =
 
 
 
--- VIEW
+-- #     # ### ####### #     #
+-- #     #  #  #       #  #  #
+-- #     #  #  #       #  #  #
+-- #     #  #  #####   #  #  #
+--  #   #   #  #       #  #  #
+--   # #    #  #       #  #  #
+--    #    ### #######  ## ##
 
 
 view : Model -> Html Msg
@@ -537,7 +574,13 @@ view model =
 
 
 
--- SUBSCRIPTIONS
+--  #####  #     # ######   #####   #####  ######  ### ######  ####### ### ####### #     #  #####
+-- #     # #     # #     # #     # #     # #     #  #  #     #    #     #  #     # ##    # #     #
+-- #       #     # #     # #       #       #     #  #  #     #    #     #  #     # # #   # #
+--  #####  #     # ######   #####  #       ######   #  ######     #     #  #     # #  #  #  #####
+--       # #     # #     #       # #       #   #    #  #          #     #  #     # #   # #       #
+-- #     # #     # #     # #     # #     # #    #   #  #          #     #  #     # #    ## #     #
+--  #####   #####  ######   #####   #####  #     # ### #          #    ### ####### #     #  #####
 
 
 subscriptions : Model -> Sub Msg
@@ -553,7 +596,13 @@ subscriptions model =
 
 
 
--- FUNCTIONS
+-- ####### #     # #     #  #####  ####### ### ####### #     #  #####
+-- #       #     # ##    # #     #    #     #  #     # ##    # #     #
+-- #       #     # # #   # #          #     #  #     # # #   # #
+-- #####   #     # #  #  # #          #     #  #     # #  #  #  #####
+-- #       #     # #   # # #          #     #  #     # #   # #       #
+-- #       #     # #    ## #     #    #     #  #     # #    ## #     #
+-- #        #####  #     #  #####     #    ### ####### #     #  #####
 
 
 updateKeyStatus : Bool -> String -> KeyStatusModel -> KeyStatusModel
@@ -605,31 +654,39 @@ updateOption option select value =
 
 createSphereEntities points n =
     let
-        hexToRgb : String -> ( Float, Float, Float )
         hexToRgb hex =
-            case String.dropLeft 1 hex of
-                "ffffff" ->
-                    ( 255.0, 255.0, 255.0 )
-
-                "000000" ->
-                    ( 0.0, 0, 0 )
-
-                _ ->
-                    ( 1.0, 0, 0 )
-
-        createColorFromHex : String -> Color
-        createColorFromHex hex =
             let
-                ( r, g, b ) =
-                    hexToRgb hex
+                red =
+                    case Hex.fromString (String.slice 1 3 hex) of
+                        Ok intValue ->
+                            toFloat intValue / 255
+
+                        Err _ ->
+                            0.0
+
+                green =
+                    case Hex.fromString (String.slice 3 5 hex) of
+                        Ok intValue ->
+                            toFloat intValue / 255
+
+                        Err _ ->
+                            0.0
+
+                blue =
+                    case Hex.fromString (String.slice 5 7 hex) of
+                        Ok intValue ->
+                            toFloat intValue / 255
+
+                        Err _ ->
+                            0.0
             in
-            Color.rgb r g b
+            Color.rgb red green blue
 
         material =
             case List.head points of
                 Just firstPoint ->
                     Material.nonmetal
-                        { baseColor = createColorFromHex firstPoint.color
+                        { baseColor = hexToRgb firstPoint.color
                         , roughness = 1.0
                         }
 
@@ -673,7 +730,13 @@ convertToPoint3d point =
 
 
 
--- DECODERS
+-- ######  #######  #####  ####### ######  ####### ######
+-- #     # #       #     # #     # #     # #       #     #
+-- #     # #       #       #     # #     # #       #     #
+-- #     # #####   #       #     # #     # #####   ######
+-- #     # #       #       #     # #     # #       #   #
+-- #     # #       #     # #     # #     # #       #    #
+-- ######  #######  #####  ####### ######  ####### #     #
 
 
 viewMoveDecoder : Decoder Msg
