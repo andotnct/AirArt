@@ -1,12 +1,14 @@
 port module AirArt exposing (main)
 
 import Angle
+import Block3d exposing (Block3d)
 import Browser
 import Browser.Dom
 import Browser.Events
 import Camera3d
 import Color exposing (Color)
 import Direction3d
+import Frame3d
 import Hex
 import Html exposing (Html, div, pre)
 import Html.Attributes exposing (id, style, type_, value)
@@ -69,7 +71,7 @@ init : () -> ( Model, Cmd Msg )
 init () =
     ( { width = Quantity.zero
       , height = Quantity.zero
-      , eyePoint = { x = 0.0, y = 0.0, z = 50.0 }
+      , eyePoint = { x = 0.0, y = 0.0, z = 10.0 }
       , focalVector = { x = 1.0, y = 0.0, z = 0.0 }
       , keyStatus =
             { up = False
@@ -82,6 +84,8 @@ init () =
       , isClick = False
       , points = []
       , numPoints = 0
+      , isStartModalOpen = True
+      , isExplainTextOpen = False
       , isOptionOpen = False
       , isViewMoveEnable = False
       , option =
@@ -121,6 +125,8 @@ type alias Model =
     , isClick : Bool
     , points : List PointModel
     , numPoints : Int
+    , isStartModalOpen : Bool
+    , isExplainTextOpen : Bool
     , isOptionOpen : Bool
     , isViewMoveEnable : Bool
     , option : OptionModel
@@ -177,7 +183,6 @@ type Msg
     | DisableIsClick
     | TimeDelta Float
     | ViewMove (Quantity Float Pixels.Pixels) (Quantity Float Pixels.Pixels)
-    | DrawPoints (Quantity Float Pixels.Pixels) (Quantity Float Pixels.Pixels)
     | OpenOptionModal
     | CloseOptionModal
     | ChangeMoveSpeed Float
@@ -205,7 +210,7 @@ update msg model =
 
         RequestPointerLock ->
             if model.isOptionOpen == False then
-                ( { model | isClick = True, isOptionOpen = False, isViewMoveEnable = True }, requestPointerLock () )
+                ( { model | isClick = True, isStartModalOpen = False, isExplainTextOpen = True, isOptionOpen = False, isViewMoveEnable = True }, requestPointerLock () )
 
             else
                 ( model, Cmd.none )
@@ -297,7 +302,25 @@ update msg model =
                     else
                         model.eyePoint
             in
-            ( { model | eyePoint = position }, Cmd.none )
+            if model.isClick == True then
+                ( { model
+                    | eyePoint = position
+                    , points =
+                        model.points
+                            ++ [ { coord =
+                                    addPoints model.eyePoint <|
+                                        multiplePoints model.focalVector model.option.penDistance
+                                 , color = model.option.penColor
+                                 , size = model.option.penSize
+                                 }
+                               ]
+                    , numPoints = model.numPoints + 1
+                  }
+                , Cmd.none
+                )
+
+            else
+                ( { model | eyePoint = position }, Cmd.none )
 
         KeyChanged isDown key ->
             if key == "e" && model.isOptionOpen == False then
@@ -337,26 +360,6 @@ update msg model =
             in
             ( { model | focalVector = newFocalVector }, Cmd.none )
 
-        DrawPoints dx dy ->
-            if model.isClick == True then
-                ( { model
-                    | points =
-                        model.points
-                            ++ [ { coord =
-                                    addPoints model.eyePoint <|
-                                        multiplePoints model.focalVector model.option.penDistance
-                                 , color = model.option.penColor
-                                 , size = model.option.penSize
-                                 }
-                               ]
-                    , numPoints = model.numPoints + 1
-                  }
-                , Cmd.none
-                )
-
-            else
-                ( model, Cmd.none )
-
 
 
 -- #     # ### ####### #     #
@@ -371,35 +374,18 @@ update msg model =
 view : Model -> Html Msg
 view model =
     let
-        ( firstLight, _ ) =
-            pointLight
-                { position = Point3d.centimeters -50 -30 70
-                , chromaticity = Light.incandescent
-                , intensity = LuminousFlux.lumens 500
+        lightBulb =
+            Light.point (Light.castsShadows True)
+                { chromaticity = Light.incandescent
+                , intensity = LuminousFlux.lumens 300
+                , position = Point3d.meters 0 0 300
                 }
 
-        ( secondLight, _ ) =
-            pointLight
-                { position = Point3d.centimeters -40 10 90
-                , chromaticity = Light.fluorescent
-                , intensity = LuminousFlux.lumens 500
-                }
-
-        thirdLight =
-            Light.directional (Light.castsShadows True)
-                { direction = Direction3d.xyZ (Angle.degrees -90) (Angle.degrees -45)
-                , chromaticity =
-                    Light.colorTemperature <|
-                        Temperature.kelvins 2000
-                , intensity = Illuminance.lux 30
-                }
-
-        softLighting =
-            Light.soft
+        overheadLighting =
+            Light.overhead
                 { upDirection = Direction3d.positiveZ
                 , chromaticity = Light.fluorescent
-                , intensityAbove = Illuminance.lux 30
-                , intensityBelow = Illuminance.lux 5
+                , intensity = Illuminance.lux 100
                 }
 
         floor =
@@ -422,26 +408,56 @@ view model =
                 , verticalFieldOfView = Angle.degrees 30
                 }
 
+        startModal =
+            if model.isStartModalOpen == True then
+                pre
+                    [ style "position" "absolute"
+                    , style "top" "50%"
+                    , style "left" "50%"
+                    , style "background-color" "#fff"
+                    , style "transform" "translate(-50%, -50%)"
+                    , style "padding" "20px"
+                    , style "z-index" "9999"
+                    , style "font-weight" "bold"
+                    , style "font-size" "24px"
+                    , style "font-family" "Arial, sans-serif"
+                    ]
+                    [ Html.text "マウスで自由にお絵かきしよう！\n"
+                    , Html.text "オプションでペンの太さや色を変えられるよ！\n"
+
+                    -- , Html.text "書いた線を掴んで移動させることもできる！\n"
+                    , Html.text "好きなところをクリックしてスタート！！！\n"
+                    ]
+
+            else
+                div []
+                    []
+
         explainText =
-            pre
-                [ style "position" "absolute"
-                , style "top" "10%"
-                , style "left" "10%"
-                , style "background-color" "#fff"
-                , style "transform" "translate(-50%, -50%)"
-                , style "padding" "20px"
-                , style "z-index" "9999"
-                , style "font-weight" "bold"
-                , style "font-size" "15px"
-                , style "font-family" "Arial, sans-serif"
-                ]
-                [ Html.text "マウスクリックで操作開始\n"
-                , Html.text "Escで操作解除\n"
-                , Html.text "WASDで移動\n"
-                , Html.text "Space/Shiftで上昇/下降\n"
-                , Html.text "クリック+マウス移動で点を描画\n"
-                , Html.text "Eでオプション表示"
-                ]
+            if model.isExplainTextOpen == True then
+                pre
+                    [ style "position" "absolute"
+                    , style "top" "10%"
+                    , style "left" "10%"
+                    , style "background-color" "#fff"
+                    , style "transform" "translate(-50%, -50%)"
+                    , style "padding" "20px"
+                    , style "z-index" "9999"
+                    , style "font-weight" "bold"
+                    , style "font-size" "15px"
+                    , style "font-family" "Arial, sans-serif"
+                    ]
+                    [ Html.text "マウスクリックで操作開始\n"
+                    , Html.text "Escで操作解除\n"
+                    , Html.text "WASDで移動\n"
+                    , Html.text "Space/Shiftで上昇/下降\n"
+                    , Html.text "クリック+マウス移動で点を描画\n"
+                    , Html.text "Eでオプション表示"
+                    ]
+
+            else
+                div []
+                    []
 
         hud =
             div
@@ -556,19 +572,20 @@ view model =
         , onMouseUp DisableIsClick
         ]
         [ Scene3d.custom
-            { entities = [ floor ] ++ createSphereEntities model.points model.numPoints
-            , lights = Scene3d.fourLights firstLight secondLight thirdLight softLighting
+            { entities = [ floor ] ++ createCloudEntities ++ createSphereEntities model.points model.numPoints
+            , lights = Scene3d.twoLights lightBulb overheadLighting
             , camera = camera
             , background = Scene3d.backgroundColor Color.lightBlue
             , clipDepth = Length.centimeters 10
             , exposure = Scene3d.exposureValue 6
-            , toneMapping = Scene3d.hableFilmicToneMapping
+            , toneMapping = Scene3d.noToneMapping
             , whiteBalance = Light.fluorescent
             , antialiasing = Scene3d.multisampling
             , dimensions = ( model.width, model.height )
             }
         , explainText
         , hud
+        , startModal
         , optionModal
         ]
 
@@ -588,7 +605,6 @@ subscriptions model =
     Sub.batch
         [ Browser.Events.onResize (\width height -> ResizeWindow (Pixels.int width) (Pixels.int height))
         , Browser.Events.onAnimationFrameDelta TimeDelta
-        , Browser.Events.onMouseMove drawPointsDecoder
         , Browser.Events.onMouseMove viewMoveDecoder
         , Browser.Events.onKeyUp (Decode.map (KeyChanged False) (Decode.field "key" Decode.string))
         , Browser.Events.onKeyDown (Decode.map (KeyChanged True) (Decode.field "key" Decode.string))
@@ -713,6 +729,43 @@ createSphereEntities points n =
         []
 
 
+createCloudEntities =
+    let
+        cloudDimensions =
+            [ ( Length.meters 40, Length.meters 40, Length.meters 2 )
+            , ( Length.meters 20, Length.meters 40, Length.meters 2 )
+            ]
+
+        cloudBoxCenters =
+            [ Point3d.meters 50 50 100
+            , Point3d.meters 300 -100 100
+            ]
+
+        cloudMaterial =
+            Material.metal
+                { baseColor = Color.white
+                , roughness = 1.0
+                }
+
+        createCloudEntity dimensionsList centersList n =
+            let
+                cloudBox =
+                    case ( List.head centersList, List.head dimensionsList ) of
+                        ( Just center, Just dimension ) ->
+                            Scene3d.blockWithShadow cloudMaterial (Block3d.centeredOn (Frame3d.atPoint center) dimension)
+
+                        _ ->
+                            Scene3d.blockWithShadow cloudMaterial (Block3d.centeredOn (Frame3d.atPoint (Point3d.meters 0 0 0)) ( Length.meters 0, Length.meters 0, Length.meters 0 ))
+            in
+            if n > 1 then
+                [ cloudBox ] ++ createCloudEntity (List.drop 1 dimensionsList) (List.drop 1 centersList) (n - 1)
+
+            else
+                [ cloudBox ]
+    in
+    createCloudEntity cloudDimensions cloudBoxCenters 2
+
+
 addPoints point1 point2 =
     { x = point1.x + point2.x, y = point1.y + point2.y, z = point1.z + point2.z }
 
@@ -747,31 +800,3 @@ viewMoveDecoder =
             (Decode.field "movementX" (Decode.map Pixels.float Decode.float))
             (Decode.field "movementY" (Decode.map Pixels.float Decode.float))
         ]
-
-
-drawPointsDecoder : Decoder Msg
-drawPointsDecoder =
-    Decode.oneOf
-        [ Decode.map2
-            DrawPoints
-            (Decode.field "movementX" (Decode.map Pixels.float Decode.float))
-            (Decode.field "movementY" (Decode.map Pixels.float Decode.float))
-        ]
-
-
-pointLight properties =
-    let
-        sphere =
-            Sphere3d.atPoint properties.position (Length.millimeters 5)
-
-        sphereLuminance =
-            properties.intensity
-                |> Quantity.per (SolidAngle.spats 0.5)
-                |> Quantity.per (Sphere3d.surfaceArea sphere)
-
-        sphereMaterial =
-            Material.emissive properties.chromaticity sphereLuminance
-    in
-    ( Light.point (Light.castsShadows True) properties
-    , Scene3d.sphere sphereMaterial sphere
-    )
