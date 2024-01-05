@@ -7,7 +7,8 @@ import Browser.Dom
 import Browser.Events
 import Camera3d
 import Color exposing (Color)
-import Direction3d
+import Cylinder3d exposing (Cylinder3d)
+import Direction3d exposing (Direction3d)
 import Frame3d
 import Hex
 import Html exposing (Html, div, pre)
@@ -18,8 +19,9 @@ import Json.Decode as Decode exposing (Decoder)
 import Length
 import LuminousFlux
 import Pixels
-import Point3d
+import Point3d exposing (Point3d)
 import Quantity exposing (Quantity)
+import Random
 import Scene3d
 import Scene3d.Light as Light exposing (Chromaticity, Light)
 import Scene3d.Material as Material
@@ -71,7 +73,8 @@ init : () -> ( Model, Cmd Msg )
 init () =
     ( { width = Quantity.zero
       , height = Quantity.zero
-      , eyePoint = { x = 0.0, y = 0.0, z = 10.0 }
+      , randomNumbersList = []
+      , eyePoint = { x = 0.0, y = 0.0, z = 2.0 }
       , focalVector = { x = 1.0, y = 0.0, z = 0.0 }
       , keyStatus =
             { up = False
@@ -119,6 +122,7 @@ init () =
 type alias Model =
     { width : Quantity Int Pixels.Pixels
     , height : Quantity Int Pixels.Pixels
+    , randomNumbersList : List Int
     , eyePoint : Point3dModel
     , focalVector : Point3dModel
     , keyStatus : KeyStatusModel
@@ -179,6 +183,7 @@ type alias OptionModel =
 type Msg
     = ResizeWindow (Quantity Int Pixels.Pixels) (Quantity Int Pixels.Pixels)
     | RequestPointerLock
+    | UpdateModel Int
     | KeyChanged Bool String
     | DisableIsClick
     | TimeDelta Float
@@ -214,6 +219,11 @@ update msg model =
 
             else
                 ( model, Cmd.none )
+
+        UpdateModel randomNumber ->
+            ( { model | randomNumbersList = model.randomNumbersList ++ [ randomNumber ] }
+            , Cmd.none
+            )
 
         OpenOptionModal ->
             ( { model | isOptionOpen = True }, Cmd.none )
@@ -263,37 +273,37 @@ update msg model =
                     }
 
                 position =
-                    if model.keyStatus.up == True then
+                    if model.keyStatus.up == True && model.isStartModalOpen == False then
                         addPoints model.eyePoint <|
                             multiplePoints model.focalVector <|
                                 model.option.moveSpeed
                                     * 0.1
 
-                    else if model.keyStatus.down == True then
+                    else if model.keyStatus.down == True && model.isStartModalOpen == False then
                         minusPoints model.eyePoint <|
                             multiplePoints model.focalVector <|
                                 model.option.moveSpeed
                                     * 0.1
 
-                    else if model.keyStatus.left == True then
+                    else if model.keyStatus.left == True && model.isStartModalOpen == False then
                         addPoints model.eyePoint <|
                             multiplePoints toRightVector <|
                                 model.option.moveSpeed
                                     * 0.1
 
-                    else if model.keyStatus.right == True then
+                    else if model.keyStatus.right == True && model.isStartModalOpen == False then
                         addPoints model.eyePoint <|
                             multiplePoints toLeftVector <|
                                 model.option.moveSpeed
                                     * 0.1
 
-                    else if model.keyStatus.space == True then
+                    else if model.keyStatus.space == True && model.isStartModalOpen == False then
                         addPoints model.eyePoint <|
                             multiplePoints toUpVector <|
                                 model.option.moveSpeed
                                     * 0.1
 
-                    else if model.keyStatus.shift == True then
+                    else if model.keyStatus.shift == True && model.isStartModalOpen == False then
                         addPoints model.eyePoint <|
                             multiplePoints toDownVector <|
                                 model.option.moveSpeed
@@ -303,6 +313,14 @@ update msg model =
                         model.eyePoint
             in
             if model.isClick == True then
+                let
+                    cmd =
+                        if List.length model.randomNumbersList < 500 then
+                            Random.generate UpdateModel (Random.int -200 200)
+
+                        else
+                            Cmd.none
+                in
                 ( { model
                     | eyePoint = position
                     , points =
@@ -316,11 +334,19 @@ update msg model =
                                ]
                     , numPoints = model.numPoints + 1
                   }
-                , Cmd.none
+                , cmd
                 )
 
             else
-                ( { model | eyePoint = position }, Cmd.none )
+                let
+                    cmd =
+                        if List.length model.randomNumbersList < 500 then
+                            Random.generate UpdateModel (Random.int -200 200)
+
+                        else
+                            Cmd.none
+                in
+                ( { model | eyePoint = position }, cmd )
 
         KeyChanged isDown key ->
             if key == "e" && model.isOptionOpen == False then
@@ -572,7 +598,7 @@ view model =
         , onMouseUp DisableIsClick
         ]
         [ Scene3d.custom
-            { entities = [ floor ] ++ createCloudEntities ++ createSphereEntities model.points model.numPoints
+            { entities = [ floor ] ++ createTreeEntities model ++ createCloudEntities ++ createSphereEntities model.points model.numPoints
             , lights = Scene3d.twoLights lightBulb overheadLighting
             , camera = camera
             , background = Scene3d.backgroundColor Color.lightBlue
@@ -729,16 +755,101 @@ createSphereEntities points n =
         []
 
 
+createTreeEntities model =
+    let
+        treeCenters =
+            randomNumbersList2Coords model.randomNumbersList <| List.length model.randomNumbersList
+
+        trunkMaterial =
+            Material.metal
+                { baseColor = Color.brown
+                , roughness = 1.0
+                }
+
+        leavesMaterial =
+            Material.metal
+                { baseColor = Color.green
+                , roughness = 1.0
+                }
+
+        createTrunkEntity centersList n =
+            let
+                trunkEntity =
+                    case List.head centersList of
+                        Just center ->
+                            Scene3d.cylinder trunkMaterial (Cylinder3d.centeredOn (convertToPoint3d center) Direction3d.z { length = Length.meters 3.0, radius = Length.meters 0.25 })
+
+                        _ ->
+                            Scene3d.cylinder trunkMaterial (Cylinder3d.centeredOn (Point3d.meters 0 0 0) Direction3d.z { length = Length.meters 0, radius = Length.meters 0 })
+
+                leavesEntity =
+                    case List.head centersList of
+                        Just center ->
+                            Scene3d.sphere leavesMaterial
+                                (Sphere3d.withRadius (Length.meters 1.0) <|
+                                    convertToPoint3d { x = center.x, y = center.y, z = center.z + 1.5 }
+                                )
+
+                        _ ->
+                            Scene3d.sphere leavesMaterial <|
+                                Sphere3d.withRadius (Length.meters 0) Point3d.origin
+            in
+            if n > 2 then
+                [ trunkEntity, leavesEntity ] ++ createTrunkEntity (List.drop 2 centersList) (n - 1)
+
+            else
+                [ trunkEntity, leavesEntity ]
+    in
+    createTrunkEntity treeCenters <|
+        List.length treeCenters
+
+
 createCloudEntities =
     let
         cloudDimensions =
             [ ( Length.meters 40, Length.meters 40, Length.meters 2 )
             , ( Length.meters 20, Length.meters 40, Length.meters 2 )
+            , ( Length.meters 30, Length.meters 50, Length.meters 2 )
+            , ( Length.meters 35, Length.meters 20, Length.meters 2 )
+            , ( Length.meters 40, Length.meters 60, Length.meters 2 )
+            , ( Length.meters 60, Length.meters 30, Length.meters 2 )
+            , ( Length.meters 35, Length.meters 40, Length.meters 2 )
+            , ( Length.meters 25, Length.meters 50, Length.meters 2 )
+            , ( Length.meters 40, Length.meters 30, Length.meters 2 )
+            , ( Length.meters 70, Length.meters 70, Length.meters 2 )
+            , ( Length.meters 60, Length.meters 40, Length.meters 2 )
+            , ( Length.meters 30, Length.meters 55, Length.meters 2 )
+            , ( Length.meters 50, Length.meters 40, Length.meters 2 )
+            , ( Length.meters 45, Length.meters 75, Length.meters 2 )
+            , ( Length.meters 60, Length.meters 50, Length.meters 2 )
+            , ( Length.meters 25, Length.meters 55, Length.meters 2 )
+            , ( Length.meters 55, Length.meters 60, Length.meters 2 )
+            , ( Length.meters 50, Length.meters 25, Length.meters 2 )
+            , ( Length.meters 25, Length.meters 60, Length.meters 2 )
+            , ( Length.meters 45, Length.meters 65, Length.meters 2 )
             ]
 
         cloudBoxCenters =
             [ Point3d.meters 50 50 100
             , Point3d.meters 300 -100 100
+            , Point3d.meters -150 30 100
+            , Point3d.meters -50 200 100
+            , Point3d.meters 80 -170 100
+            , Point3d.meters 250 300 100
+            , Point3d.meters 400 200 100
+            , Point3d.meters -50 450 100
+            , Point3d.meters -350 -90 100
+            , Point3d.meters -450 400 100
+            , Point3d.meters 500 500 100
+            , Point3d.meters 500 -500 100
+            , Point3d.meters -500 500 100
+            , Point3d.meters -500 -500 100
+            , Point3d.meters 50 -450 100
+            , Point3d.meters -150 -300 100
+            , Point3d.meters 350 -400 100
+            , Point3d.meters -250 250 100
+            , Point3d.meters -400 100 100
+            , Point3d.meters 450 50 100
             ]
 
         cloudMaterial =
@@ -749,7 +860,7 @@ createCloudEntities =
 
         createCloudEntity dimensionsList centersList n =
             let
-                cloudBox =
+                cloudEntity =
                     case ( List.head centersList, List.head dimensionsList ) of
                         ( Just center, Just dimension ) ->
                             Scene3d.blockWithShadow cloudMaterial (Block3d.centeredOn (Frame3d.atPoint center) dimension)
@@ -758,12 +869,13 @@ createCloudEntities =
                             Scene3d.blockWithShadow cloudMaterial (Block3d.centeredOn (Frame3d.atPoint (Point3d.meters 0 0 0)) ( Length.meters 0, Length.meters 0, Length.meters 0 ))
             in
             if n > 1 then
-                [ cloudBox ] ++ createCloudEntity (List.drop 1 dimensionsList) (List.drop 1 centersList) (n - 1)
+                [ cloudEntity ] ++ createCloudEntity (List.drop 1 dimensionsList) (List.drop 1 centersList) (n - 1)
 
             else
-                [ cloudBox ]
+                [ cloudEntity ]
     in
-    createCloudEntity cloudDimensions cloudBoxCenters 2
+    createCloudEntity cloudDimensions cloudBoxCenters <|
+        List.length cloudDimensions
 
 
 addPoints point1 point2 =
@@ -780,6 +892,34 @@ multiplePoints point f =
 
 convertToPoint3d point =
     Point3d.meters point.x point.y point.z
+
+
+randomNumbersList2Coords randomNumbersList n =
+    let
+        randomNumbersX =
+            case List.head randomNumbersList of
+                Just randomNumber ->
+                    randomNumber
+
+                Nothing ->
+                    0
+
+        randomNumbersY =
+            case List.head (List.drop 1 randomNumbersList) of
+                Just randomNumber ->
+                    randomNumber
+
+                Nothing ->
+                    0
+
+        coords =
+            { x = toFloat randomNumbersX, y = toFloat randomNumbersY, z = 1.5 }
+    in
+    if n > 1 then
+        [ coords ] ++ randomNumbersList2Coords (List.drop 1 randomNumbersList) (n - 2)
+
+    else
+        [ coords ]
 
 
 
