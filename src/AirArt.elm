@@ -18,12 +18,13 @@ import Html.Events exposing (onInput, onMouseDown, onMouseUp)
 import Illuminance
 import Json.Decode as Decode exposing (Decoder)
 import Length
+import LineSegment3d exposing (LineSegment3d, fromEndpoints)
 import LuminousFlux
 import Pixels
 import Point3d exposing (Point3d)
 import Quantity exposing (Quantity)
 import Random
-import Scene3d
+import Scene3d exposing (Entity, lineSegment)
 import Scene3d.Light as Light exposing (Chromaticity, Light)
 import Scene3d.Material as Material
 import SolidAngle
@@ -103,6 +104,7 @@ init () =
             , penDistance = 20.0
             , penType = "sphere"
             , previewEnable = False
+            , axisEnable = False
             }
       }
     , Task.perform
@@ -183,6 +185,7 @@ type alias OptionModel =
     , penDistance : Float
     , penType : String
     , previewEnable : Bool
+    , axisEnable : Bool
     }
 
 
@@ -213,6 +216,7 @@ type Msg
     | ChangePenDistance Float
     | ChangePenType String
     | SwitchPreviewEnable
+    | SwitchAxisEnable
 
 
 
@@ -301,6 +305,9 @@ update msg model =
 
         SwitchPreviewEnable ->
             ( { model | option = updateOption model.option "previewEnable" "" }, Cmd.none )
+
+        SwitchAxisEnable ->
+            ( { model | option = updateOption model.option "axisEnable" "" }, Cmd.none )
 
         TimeDelta _ ->
             let
@@ -703,6 +710,15 @@ view model =
                             ]
                             []
                         ]
+                    , div []
+                        [ Html.text "座標軸表示\u{3000}"
+                        , Html.input
+                            [ type_ "checkbox"
+                            , checked model.option.axisEnable
+                            , onInput (\_ -> SwitchAxisEnable)
+                            ]
+                            []
+                        ]
                     , div
                         []
                         [ Html.button [ onMouseDown CloseOptionModal, style "font-size" "24px" ] [ Html.text "Close" ] ]
@@ -718,7 +734,7 @@ view model =
         , onMouseUp DisableIsClick
         ]
         [ Scene3d.custom
-            { entities = [ floor ] ++ createTreeEntities model ++ createPreviewEntities model ++ createCloudEntities ++ createFigureEntities model.points model.numPoints
+            { entities = [ floor ] ++ createTreeEntities model ++ createCloudEntities ++ createPreviewEntities model ++ createAxisEntities model ++ createFigureEntities model.points model.numPoints
             , lights = Scene3d.twoLights lightBulb overheadLighting
             , camera = camera
             , background = Scene3d.backgroundColor Color.lightBlue
@@ -838,53 +854,29 @@ updateOption option select value =
         "previewEnable" ->
             { option | previewEnable = not option.previewEnable }
 
+        "axisEnable" ->
+            { option | axisEnable = not option.axisEnable }
+
         _ ->
             option
 
 
+createMaterial basecolor roughness =
+    Material.nonmetal
+        { baseColor = basecolor
+        , roughness = roughness
+        }
+
+
 createFigureEntities points n =
     let
-        hexToRgb hex =
-            let
-                red =
-                    case Hex.fromString (String.slice 1 3 hex) of
-                        Ok intValue ->
-                            toFloat intValue / 255
-
-                        Err _ ->
-                            0.0
-
-                green =
-                    case Hex.fromString (String.slice 3 5 hex) of
-                        Ok intValue ->
-                            toFloat intValue / 255
-
-                        Err _ ->
-                            0.0
-
-                blue =
-                    case Hex.fromString (String.slice 5 7 hex) of
-                        Ok intValue ->
-                            toFloat intValue / 255
-
-                        Err _ ->
-                            0.0
-            in
-            Color.rgb red green blue
-
         material =
             case List.head points of
                 Just firstPoint ->
-                    Material.nonmetal
-                        { baseColor = hexToRgb firstPoint.color
-                        , roughness = 1.0
-                        }
+                    createMaterial (hexToRgb firstPoint.color) 1.0
 
                 Nothing ->
-                    Material.nonmetal
-                        { baseColor = Color.black
-                        , roughness = 1.0
-                        }
+                    createMaterial Color.black 1.0
 
         figureEntity =
             case List.head points of
@@ -964,39 +956,8 @@ createFigureEntities points n =
 
 createPreviewEntities model =
     let
-        hexToRgb hex =
-            let
-                red =
-                    case Hex.fromString (String.slice 1 3 hex) of
-                        Ok intValue ->
-                            toFloat intValue / 255
-
-                        Err _ ->
-                            0.0
-
-                green =
-                    case Hex.fromString (String.slice 3 5 hex) of
-                        Ok intValue ->
-                            toFloat intValue / 255
-
-                        Err _ ->
-                            0.0
-
-                blue =
-                    case Hex.fromString (String.slice 5 7 hex) of
-                        Ok intValue ->
-                            toFloat intValue / 255
-
-                        Err _ ->
-                            0.0
-            in
-            Color.rgb red green blue
-
         material =
-            Material.nonmetal
-                { baseColor = hexToRgb model.option.penColor
-                , roughness = 1.0
-                }
+            createMaterial (hexToRgb model.option.penColor) 0.0
 
         entityCoord =
             addPoints model.eyePoint <|
@@ -1070,6 +1031,41 @@ createPreviewEntities model =
                         )
                         (convertToPoint3d entityCoord)
                 ]
+
+    else
+        []
+
+
+createAxisEntities model =
+    if model.option.axisEnable == True then
+        [ Scene3d.cylinder (createMaterial Color.black 1.0)
+            (Cylinder3d.centeredOn
+                (convertToPoint3d <|
+                    addPoints model.eyePoint <|
+                        multiplePoints model.focalVector model.option.penDistance
+                )
+                Direction3d.x
+                { length = Length.meters 1000, radius = Length.meters 0.01 }
+            )
+        , Scene3d.cylinder (createMaterial Color.black 1.0)
+            (Cylinder3d.centeredOn
+                (convertToPoint3d <|
+                    addPoints model.eyePoint <|
+                        multiplePoints model.focalVector model.option.penDistance
+                )
+                Direction3d.y
+                { length = Length.meters 1000, radius = Length.meters 0.01 }
+            )
+        , Scene3d.cylinder (createMaterial Color.black 1.0)
+            (Cylinder3d.centeredOn
+                (convertToPoint3d <|
+                    addPoints model.eyePoint <|
+                        multiplePoints model.focalVector model.option.penDistance
+                )
+                Direction3d.z
+                { length = Length.meters 1000, radius = Length.meters 0.01 }
+            )
+        ]
 
     else
         []
@@ -1197,6 +1193,35 @@ createCloudEntities =
     in
     createCloudEntity cloudDimensions cloudBoxCenters <|
         List.length cloudDimensions
+
+
+hexToRgb hex =
+    let
+        red =
+            case Hex.fromString (String.slice 1 3 hex) of
+                Ok intValue ->
+                    toFloat intValue / 255
+
+                Err _ ->
+                    0.0
+
+        green =
+            case Hex.fromString (String.slice 3 5 hex) of
+                Ok intValue ->
+                    toFloat intValue / 255
+
+                Err _ ->
+                    0.0
+
+        blue =
+            case Hex.fromString (String.slice 5 7 hex) of
+                Ok intValue ->
+                    toFloat intValue / 255
+
+                Err _ ->
+                    0.0
+    in
+    Color.rgb red green blue
 
 
 addPoints point1 point2 =
