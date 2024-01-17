@@ -7,22 +7,24 @@ import Browser.Dom
 import Browser.Events
 import Camera3d
 import Color exposing (Color)
+import Cone3d exposing (Cone3d)
 import Cylinder3d exposing (Cylinder3d)
 import Direction3d exposing (Direction3d)
 import Frame3d
 import Hex
 import Html exposing (Html, div, pre)
-import Html.Attributes exposing (id, style, type_, value)
+import Html.Attributes exposing (checked, id, name, style, type_, value)
 import Html.Events exposing (onInput, onMouseDown, onMouseUp)
 import Illuminance
 import Json.Decode as Decode exposing (Decoder)
 import Length
+import LineSegment3d exposing (LineSegment3d, fromEndpoints)
 import LuminousFlux
 import Pixels
 import Point3d exposing (Point3d)
 import Quantity exposing (Quantity)
 import Random
-import Scene3d
+import Scene3d exposing (Entity, lineSegment)
 import Scene3d.Light as Light exposing (Chromaticity, Light)
 import Scene3d.Material as Material
 import SolidAngle
@@ -83,8 +85,11 @@ init () =
             , right = False
             , space = False
             , shift = False
+            , vlock = False
+            , hlock = False
             }
       , isClick = False
+      , allowClick = False
       , points = []
       , numPoints = 0
       , isStartModalOpen = True
@@ -92,18 +97,25 @@ init () =
       , isOptionOpen = False
       , isViewMoveEnable = False
       , option =
-            { moveSpeed = 3.0
-            , viewMoveSpeed = 5.0
-            , penSize = 50.0
+            { moveSpeed = 30
+            , viewMoveSpeed = 10.0
+            , penSize = 200.0
             , penColor = "#000000"
             , penDistance = 20.0
+            , penType = "sphere"
+            , previewEnable = False
+            , axisEnable = False
             }
       }
     , Task.perform
         (\{ viewport } ->
             ResizeWindow
-                (Pixels.int <| round viewport.width)
-                (Pixels.int <| round viewport.height)
+                (Pixels.int <|
+                    round viewport.width
+                )
+                (Pixels.int <|
+                    round viewport.height
+                )
         )
         Browser.Dom.getViewport
     )
@@ -127,6 +139,7 @@ type alias Model =
     , focalVector : Point3dModel
     , keyStatus : KeyStatusModel
     , isClick : Bool
+    , allowClick : Bool
     , points : List PointModel
     , numPoints : Int
     , isStartModalOpen : Bool
@@ -151,6 +164,8 @@ type alias KeyStatusModel =
     , right : Bool
     , space : Bool
     , shift : Bool
+    , hlock : Bool
+    , vlock : Bool
     }
 
 
@@ -158,6 +173,7 @@ type alias PointModel =
     { coord : Point3dModel
     , color : String
     , size : Float
+    , penType : String
     }
 
 
@@ -167,6 +183,9 @@ type alias OptionModel =
     , penSize : Float
     , penColor : String
     , penDistance : Float
+    , penType : String
+    , previewEnable : Bool
+    , axisEnable : Bool
     }
 
 
@@ -195,6 +214,9 @@ type Msg
     | ChangePenSize Float
     | ChangePenColor String
     | ChangePenDistance Float
+    | ChangePenType String
+    | SwitchPreviewEnable
+    | SwitchAxisEnable
 
 
 
@@ -215,7 +237,15 @@ update msg model =
 
         RequestPointerLock ->
             if model.isOptionOpen == False then
-                ( { model | isClick = True, isStartModalOpen = False, isExplainTextOpen = True, isOptionOpen = False, isViewMoveEnable = True }, requestPointerLock () )
+                ( { model
+                    | isClick = True
+                    , isStartModalOpen = False
+                    , isExplainTextOpen = True
+                    , isOptionOpen = False
+                    , isViewMoveEnable = True
+                  }
+                , requestPointerLock ()
+                )
 
             else
                 ( model, Cmd.none )
@@ -232,33 +262,57 @@ update msg model =
             ( { model | isOptionOpen = False }, requestPointerLock () )
 
         ChangeMoveSpeed value ->
-            ( { model | option = updateOption model.option "moveSpeed" <| String.fromFloat value }, Cmd.none )
+            ( { model
+                | option =
+                    updateOption model.option "moveSpeed" <|
+                        String.fromFloat value
+              }
+            , Cmd.none
+            )
 
         ChangeViewMoveSpeed value ->
-            ( { model | option = updateOption model.option "viewMoveSpeed" <| String.fromFloat value }, Cmd.none )
+            ( { model
+                | option =
+                    updateOption model.option "viewMoveSpeed" <|
+                        String.fromFloat value
+              }
+            , Cmd.none
+            )
 
         ChangePenSize value ->
-            ( { model | option = updateOption model.option "penSize" <| String.fromFloat value }, Cmd.none )
+            ( { model
+                | option =
+                    updateOption model.option "penSize" <|
+                        String.fromFloat value
+              }
+            , Cmd.none
+            )
 
         ChangePenColor color ->
             ( { model | option = updateOption model.option "penColor" color }, Cmd.none )
 
         ChangePenDistance value ->
-            ( { model | option = updateOption model.option "penDistance" <| String.fromFloat value }, Cmd.none )
+            ( { model
+                | option =
+                    updateOption model.option "penDistance" <|
+                        String.fromFloat value
+              }
+            , Cmd.none
+            )
 
-        TimeDelta dt ->
+        ChangePenType penType ->
+            ( { model | option = updateOption model.option "penType" penType }, Cmd.none )
+
+        SwitchPreviewEnable ->
+            ( { model | option = updateOption model.option "previewEnable" "" }, Cmd.none )
+
+        SwitchAxisEnable ->
+            ( { model | option = updateOption model.option "axisEnable" "" }, Cmd.none )
+
+        TimeDelta _ ->
             let
-                toUpVector =
-                    { x = 0
-                    , y = 0
-                    , z = 1
-                    }
-
-                toDownVector =
-                    { x = 0
-                    , y = 0
-                    , z = -1
-                    }
+                toForwardVector =
+                    { x = model.focalVector.x, y = model.focalVector.y, z = 0 }
 
                 toRightVector =
                     { x = model.focalVector.x * cos (degrees 90) - model.focalVector.y * sin (degrees 90)
@@ -272,47 +326,53 @@ update msg model =
                     , z = 0
                     }
 
+                toUpVector =
+                    { x = 0
+                    , y = 0
+                    , z = 1
+                    }
+
                 position =
-                    if model.keyStatus.up == True && model.isStartModalOpen == False then
+                    if model.keyStatus.up == True && model.isStartModalOpen == False && model.isOptionOpen == False then
                         addPoints model.eyePoint <|
-                            multiplePoints model.focalVector <|
+                            multiplePoints toForwardVector <|
                                 model.option.moveSpeed
-                                    * 0.1
+                                    * 0.01
 
-                    else if model.keyStatus.down == True && model.isStartModalOpen == False then
+                    else if model.keyStatus.down == True && model.isStartModalOpen == False && model.isOptionOpen == False then
                         minusPoints model.eyePoint <|
-                            multiplePoints model.focalVector <|
+                            multiplePoints toForwardVector <|
                                 model.option.moveSpeed
-                                    * 0.1
+                                    * 0.01
 
-                    else if model.keyStatus.left == True && model.isStartModalOpen == False then
+                    else if model.keyStatus.left == True && model.isStartModalOpen == False && model.isOptionOpen == False then
                         addPoints model.eyePoint <|
                             multiplePoints toRightVector <|
                                 model.option.moveSpeed
-                                    * 0.1
+                                    * 0.01
 
-                    else if model.keyStatus.right == True && model.isStartModalOpen == False then
+                    else if model.keyStatus.right == True && model.isStartModalOpen == False && model.isOptionOpen == False then
                         addPoints model.eyePoint <|
                             multiplePoints toLeftVector <|
                                 model.option.moveSpeed
-                                    * 0.1
+                                    * 0.01
 
-                    else if model.keyStatus.space == True && model.isStartModalOpen == False then
+                    else if model.keyStatus.space == True && model.isStartModalOpen == False && model.isOptionOpen == False then
                         addPoints model.eyePoint <|
                             multiplePoints toUpVector <|
                                 model.option.moveSpeed
-                                    * 0.1
+                                    * 0.01
 
-                    else if model.keyStatus.shift == True && model.isStartModalOpen == False then
-                        addPoints model.eyePoint <|
-                            multiplePoints toDownVector <|
+                    else if model.keyStatus.shift == True && model.isStartModalOpen == False && model.isOptionOpen == False then
+                        minusPoints model.eyePoint <|
+                            multiplePoints toUpVector <|
                                 model.option.moveSpeed
-                                    * 0.1
+                                    * 0.01
 
                     else
                         model.eyePoint
             in
-            if model.isClick == True then
+            if model.isClick == True && model.allowClick == True then
                 let
                     cmd =
                         if List.length model.randomNumbersList < 500 then
@@ -330,6 +390,7 @@ update msg model =
                                         multiplePoints model.focalVector model.option.penDistance
                                  , color = model.option.penColor
                                  , size = model.option.penSize
+                                 , penType = model.option.penType
                                  }
                                ]
                     , numPoints = model.numPoints + 1
@@ -350,35 +411,52 @@ update msg model =
 
         KeyChanged isDown key ->
             if key == "e" && model.isOptionOpen == False then
-                ( { model | isOptionOpen = True, isViewMoveEnable = False }, exitPointerLock () )
-                -- else if key == "Escape" then
-                --     ( { model | isOptionOpen = True, isViewMoveEnable = False }, exitPointerLock () )
+                ( { model | isOptionOpen = True, allowClick = False, isViewMoveEnable = False }, exitPointerLock () )
 
             else
                 ( { model | keyStatus = updateKeyStatus isDown key model.keyStatus }, Cmd.none )
 
         DisableIsClick ->
-            ( { model | isClick = False }, Cmd.none )
+            if model.isStartModalOpen == False && model.isOptionOpen == False then
+                ( { model | isClick = False, allowClick = True }, Cmd.none )
+
+            else
+                ( model, Cmd.none )
 
         ViewMove dx dy ->
             let
                 dxFloat =
-                    Pixels.toFloat dx * model.option.viewMoveSpeed * 0.1
+                    Pixels.toFloat dx * model.option.viewMoveSpeed * 0.05
 
                 dyFloat =
-                    Pixels.toFloat dy * model.option.viewMoveSpeed * 0.1
+                    Pixels.toFloat dy * model.option.viewMoveSpeed * 0.05
 
                 angle2D =
-                    -(dxFloat / 100) * model.option.viewMoveSpeed * 0.1
+                    -(dxFloat / 100) * model.option.viewMoveSpeed * 0.05
 
                 angle3D =
-                    dyFloat / 100 * model.option.viewMoveSpeed * 0.1
+                    dyFloat / 100 * model.option.viewMoveSpeed * 0.05
 
                 newFocalVector =
                     if model.isViewMoveEnable == True then
-                        { x = model.focalVector.x * cos angle2D - model.focalVector.y * sin angle2D
-                        , y = model.focalVector.x * sin angle2D + model.focalVector.y * cos angle2D
-                        , z = clamp -1.0 1.0 model.focalVector.z - angle3D
+                        { x =
+                            if model.keyStatus.vlock == False && model.isOptionOpen == False then
+                                model.focalVector.x * cos angle2D - model.focalVector.y * sin angle2D
+
+                            else
+                                model.focalVector.x
+                        , y =
+                            if model.keyStatus.vlock == False && model.isOptionOpen == False then
+                                model.focalVector.x * sin angle2D + model.focalVector.y * cos angle2D
+
+                            else
+                                model.focalVector.y
+                        , z =
+                            if model.keyStatus.hlock == False && model.isOptionOpen == False then
+                                clamp -1.0 1.0 model.focalVector.z - angle3D
+
+                            else
+                                model.focalVector.z
                         }
 
                     else
@@ -449,10 +527,8 @@ view model =
                     , style "font-family" "Arial, sans-serif"
                     ]
                     [ Html.text "マウスで自由にお絵かきしよう！\n"
-                    , Html.text "オプションでペンの太さや色を変えられるよ！\n"
-
-                    -- , Html.text "書いた線を掴んで移動させることもできる！\n"
-                    , Html.text "好きなところをクリックしてスタート！！！\n"
+                    , Html.text "設定でペンの太さや色を変えられるよ！\n"
+                    , Html.text "好きなところをクリックしてスタート！\n"
                     ]
 
             else
@@ -463,7 +539,7 @@ view model =
             if model.isExplainTextOpen == True then
                 pre
                     [ style "position" "absolute"
-                    , style "top" "10%"
+                    , style "top" "12%"
                     , style "left" "10%"
                     , style "background-color" "#fff"
                     , style "transform" "translate(-50%, -50%)"
@@ -478,6 +554,7 @@ view model =
                     , Html.text "WASDで移動\n"
                     , Html.text "Space/Shiftで上昇/下降\n"
                     , Html.text "クリック+マウス移動で点を描画\n"
+                    , Html.text "F/Vキーで水平/垂直方向の視点を固定\n"
                     , Html.text "Eでオプション表示"
                     ]
 
@@ -585,7 +662,66 @@ view model =
                             ]
                             []
                         ]
-                    , div [] [ Html.button [ onMouseDown CloseOptionModal, style "font-size" "24px" ] [ Html.text "Close" ] ]
+                    , div []
+                        [ Html.text "ペンの種類\u{3000}"
+                        , Html.input
+                            [ type_ "radio"
+                            , name "penType"
+                            , value "sphere"
+                            , checked (model.option.penType == "sphere")
+                            , onInput (\_ -> ChangePenType "sphere")
+                            ]
+                            []
+                        , Html.span [ style "font-size" "20px" ] [ Html.text "球体" ]
+                        , Html.input
+                            [ type_ "radio"
+                            , name "penType"
+                            , value "cube"
+                            , checked (model.option.penType == "cube")
+                            , onInput (\_ -> ChangePenType "cube")
+                            ]
+                            []
+                        , Html.span [ style "font-size" "20px" ] [ Html.text "立方体" ]
+                        , Html.input
+                            [ type_ "radio"
+                            , name "penType"
+                            , value "cylinder"
+                            , checked (model.option.penType == "cylinder")
+                            , onInput (\_ -> ChangePenType "cylinder")
+                            ]
+                            []
+                        , Html.span [ style "font-size" "20px" ] [ Html.text "円柱" ]
+                        , Html.input
+                            [ type_ "radio"
+                            , name "penType"
+                            , value "cone"
+                            , checked (model.option.penType == "cone")
+                            , onInput (\_ -> ChangePenType "cone")
+                            ]
+                            []
+                        , Html.span [ style "font-size" "20px" ] [ Html.text "円錐" ]
+                        ]
+                    , div []
+                        [ Html.text "描画プレビュー表示\u{3000}"
+                        , Html.input
+                            [ type_ "checkbox"
+                            , checked model.option.previewEnable
+                            , onInput (\_ -> SwitchPreviewEnable)
+                            ]
+                            []
+                        ]
+                    , div []
+                        [ Html.text "座標軸表示\u{3000}"
+                        , Html.input
+                            [ type_ "checkbox"
+                            , checked model.option.axisEnable
+                            , onInput (\_ -> SwitchAxisEnable)
+                            ]
+                            []
+                        ]
+                    , div
+                        []
+                        [ Html.button [ onMouseDown CloseOptionModal, style "font-size" "24px" ] [ Html.text "Close" ] ]
                     ]
 
             else
@@ -598,7 +734,7 @@ view model =
         , onMouseUp DisableIsClick
         ]
         [ Scene3d.custom
-            { entities = [ floor ] ++ createTreeEntities model ++ createCloudEntities ++ createSphereEntities model.points model.numPoints
+            { entities = [ floor ] ++ createTreeEntities model ++ createCloudEntities ++ createPreviewEntities model ++ createAxisEntities model ++ createFigureEntities model.points model.numPoints
             , lights = Scene3d.twoLights lightBulb overheadLighting
             , camera = camera
             , background = Scene3d.backgroundColor Color.lightBlue
@@ -662,6 +798,12 @@ updateKeyStatus isDown key keys =
         "d" ->
             { keys | right = isDown }
 
+        "f" ->
+            { keys | hlock = isDown }
+
+        "v" ->
+            { keys | vlock = isDown }
+
         " " ->
             { keys | space = isDown }
 
@@ -676,80 +818,254 @@ updateOption : OptionModel -> String -> String -> OptionModel
 updateOption option select value =
     case select of
         "moveSpeed" ->
-            { option | moveSpeed = Maybe.withDefault 0.0 <| String.toFloat value }
+            { option
+                | moveSpeed =
+                    Maybe.withDefault 0.0 <|
+                        String.toFloat value
+            }
 
         "viewMoveSpeed" ->
-            { option | viewMoveSpeed = Maybe.withDefault 0.0 <| String.toFloat value }
+            { option
+                | viewMoveSpeed =
+                    Maybe.withDefault 0.0 <|
+                        String.toFloat value
+            }
 
         "penSize" ->
-            { option | penSize = Maybe.withDefault 0 <| String.toFloat value }
+            { option
+                | penSize =
+                    Maybe.withDefault 0 <|
+                        String.toFloat value
+            }
 
         "penColor" ->
             { option | penColor = value }
 
         "penDistance" ->
-            { option | penDistance = Maybe.withDefault 0 <| String.toFloat value }
+            { option
+                | penDistance =
+                    Maybe.withDefault 0 <|
+                        String.toFloat value
+            }
+
+        "penType" ->
+            { option | penType = value }
+
+        "previewEnable" ->
+            { option | previewEnable = not option.previewEnable }
+
+        "axisEnable" ->
+            { option | axisEnable = not option.axisEnable }
 
         _ ->
             option
 
 
-createSphereEntities points n =
+createMaterial basecolor roughness =
+    Material.nonmetal
+        { baseColor = basecolor
+        , roughness = roughness
+        }
+
+
+createFigureEntities points n =
     let
-        hexToRgb hex =
-            let
-                red =
-                    case Hex.fromString (String.slice 1 3 hex) of
-                        Ok intValue ->
-                            toFloat intValue / 255
-
-                        Err _ ->
-                            0.0
-
-                green =
-                    case Hex.fromString (String.slice 3 5 hex) of
-                        Ok intValue ->
-                            toFloat intValue / 255
-
-                        Err _ ->
-                            0.0
-
-                blue =
-                    case Hex.fromString (String.slice 5 7 hex) of
-                        Ok intValue ->
-                            toFloat intValue / 255
-
-                        Err _ ->
-                            0.0
-            in
-            Color.rgb red green blue
-
         material =
             case List.head points of
                 Just firstPoint ->
-                    Material.nonmetal
-                        { baseColor = hexToRgb firstPoint.color
-                        , roughness = 1.0
-                        }
+                    createMaterial (hexToRgb firstPoint.color) 1.0
 
                 Nothing ->
-                    Material.nonmetal
-                        { baseColor = Color.black
-                        , roughness = 1.0
-                        }
+                    createMaterial Color.black 1.0
 
-        sphereEntity =
+        figureEntity =
             case List.head points of
                 Just firstPoint ->
-                    Scene3d.sphere material <|
-                        Sphere3d.withRadius (Length.centimeters firstPoint.size) (Point3d.meters firstPoint.coord.x firstPoint.coord.y firstPoint.coord.z)
+                    case firstPoint.penType of
+                        "sphere" ->
+                            Scene3d.sphere material <|
+                                Sphere3d.withRadius
+                                    (Length.centimeters <|
+                                        firstPoint.size
+                                            * 0.25
+                                    )
+                                    (convertToPoint3d firstPoint.coord)
+
+                        "cube" ->
+                            Scene3d.blockWithShadow material <|
+                                Block3d.centeredOn (Frame3d.atPoint (convertToPoint3d firstPoint.coord))
+                                    ( Length.meters <|
+                                        firstPoint.size
+                                            * 0.005
+                                    , Length.meters <|
+                                        firstPoint.size
+                                            * 0.005
+                                    , Length.meters <|
+                                        firstPoint.size
+                                            * 0.005
+                                    )
+
+                        "cylinder" ->
+                            Scene3d.cylinder material
+                                (Cylinder3d.centeredOn (convertToPoint3d firstPoint.coord)
+                                    Direction3d.z
+                                    { length =
+                                        Length.meters <|
+                                            firstPoint.size
+                                                * 0.0025
+                                    , radius =
+                                        Length.meters <|
+                                            firstPoint.size
+                                                * 0.0025
+                                    }
+                                )
+
+                        "cone" ->
+                            Scene3d.cone material
+                                (Cone3d.startingAt (convertToPoint3d firstPoint.coord)
+                                    Direction3d.z
+                                    { length =
+                                        Length.meters <|
+                                            firstPoint.size
+                                                * 0.0025
+                                    , radius =
+                                        Length.meters <|
+                                            firstPoint.size
+                                                * 0.0025
+                                    }
+                                )
+
+                        _ ->
+                            Scene3d.sphere material <|
+                                Sphere3d.withRadius
+                                    (Length.centimeters <|
+                                        firstPoint.size
+                                            * 0.25
+                                    )
+                                    (convertToPoint3d firstPoint.coord)
 
                 Nothing ->
-                    Scene3d.sphere material <|
-                        Sphere3d.withRadius (Length.centimeters 0) Point3d.origin
+                    Scene3d.blockWithShadow material (Block3d.centeredOn (Frame3d.atPoint (Point3d.meters 0 0 0)) ( Length.meters 0, Length.meters 0, Length.meters 0 ))
     in
     if n > 0 then
-        sphereEntity :: createSphereEntities (List.drop 1 points) (n - 1)
+        figureEntity :: createFigureEntities (List.drop 1 points) (n - 1)
+
+    else
+        []
+
+
+createPreviewEntities model =
+    let
+        material =
+            createMaterial (hexToRgb model.option.penColor) 0.0
+
+        entityCoord =
+            addPoints model.eyePoint <|
+                multiplePoints model.focalVector model.option.penDistance
+    in
+    if model.option.previewEnable == True then
+        case model.option.penType of
+            "sphere" ->
+                [ Scene3d.sphere material <|
+                    Sphere3d.withRadius
+                        (Length.centimeters <|
+                            model.option.penSize
+                                * 0.25
+                        )
+                        (convertToPoint3d entityCoord)
+                ]
+
+            "cube" ->
+                [ Scene3d.blockWithShadow material <|
+                    Block3d.centeredOn (Frame3d.atPoint (convertToPoint3d entityCoord))
+                        ( Length.meters <|
+                            model.option.penSize
+                                * 0.005
+                        , Length.meters <|
+                            model.option.penSize
+                                * 0.005
+                        , Length.meters <|
+                            model.option.penSize
+                                * 0.005
+                        )
+                ]
+
+            "cylinder" ->
+                [ Scene3d.cylinder material
+                    (Cylinder3d.centeredOn (convertToPoint3d entityCoord)
+                        Direction3d.z
+                        { length =
+                            Length.meters <|
+                                model.option.penSize
+                                    * 0.0025
+                        , radius =
+                            Length.meters <|
+                                model.option.penSize
+                                    * 0.0025
+                        }
+                    )
+                ]
+
+            "cone" ->
+                [ Scene3d.cone material
+                    (Cone3d.startingAt (convertToPoint3d entityCoord)
+                        Direction3d.z
+                        { length =
+                            Length.meters <|
+                                model.option.penSize
+                                    * 0.0025
+                        , radius =
+                            Length.meters <|
+                                model.option.penSize
+                                    * 0.0025
+                        }
+                    )
+                ]
+
+            _ ->
+                [ Scene3d.sphere material <|
+                    Sphere3d.withRadius
+                        (Length.centimeters <|
+                            model.option.penSize
+                                * 0.25
+                        )
+                        (convertToPoint3d entityCoord)
+                ]
+
+    else
+        []
+
+
+createAxisEntities model =
+    if model.option.axisEnable == True then
+        [ Scene3d.cylinder (createMaterial Color.black 1.0)
+            (Cylinder3d.centeredOn
+                (convertToPoint3d <|
+                    addPoints model.eyePoint <|
+                        multiplePoints model.focalVector model.option.penDistance
+                )
+                Direction3d.x
+                { length = Length.meters 1000, radius = Length.meters 0.01 }
+            )
+        , Scene3d.cylinder (createMaterial Color.black 1.0)
+            (Cylinder3d.centeredOn
+                (convertToPoint3d <|
+                    addPoints model.eyePoint <|
+                        multiplePoints model.focalVector model.option.penDistance
+                )
+                Direction3d.y
+                { length = Length.meters 1000, radius = Length.meters 0.01 }
+            )
+        , Scene3d.cylinder (createMaterial Color.black 1.0)
+            (Cylinder3d.centeredOn
+                (convertToPoint3d <|
+                    addPoints model.eyePoint <|
+                        multiplePoints model.focalVector model.option.penDistance
+                )
+                Direction3d.z
+                { length = Length.meters 1000, radius = Length.meters 0.01 }
+            )
+        ]
 
     else
         []
@@ -758,7 +1074,8 @@ createSphereEntities points n =
 createTreeEntities model =
     let
         treeCenters =
-            randomNumbersList2Coords model.randomNumbersList <| List.length model.randomNumbersList
+            randomNumbersList2Coords model.randomNumbersList <|
+                List.length model.randomNumbersList
 
         trunkMaterial =
             Material.metal
@@ -876,6 +1193,35 @@ createCloudEntities =
     in
     createCloudEntity cloudDimensions cloudBoxCenters <|
         List.length cloudDimensions
+
+
+hexToRgb hex =
+    let
+        red =
+            case Hex.fromString (String.slice 1 3 hex) of
+                Ok intValue ->
+                    toFloat intValue / 255
+
+                Err _ ->
+                    0.0
+
+        green =
+            case Hex.fromString (String.slice 3 5 hex) of
+                Ok intValue ->
+                    toFloat intValue / 255
+
+                Err _ ->
+                    0.0
+
+        blue =
+            case Hex.fromString (String.slice 5 7 hex) of
+                Ok intValue ->
+                    toFloat intValue / 255
+
+                Err _ ->
+                    0.0
+    in
+    Color.rgb red green blue
 
 
 addPoints point1 point2 =
