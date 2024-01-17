@@ -102,6 +102,7 @@ init () =
             , penColor = "#000000"
             , penDistance = 20.0
             , penType = "sphere"
+            , previewEnable = False
             }
       }
     , Task.perform
@@ -181,6 +182,7 @@ type alias OptionModel =
     , penColor : String
     , penDistance : Float
     , penType : String
+    , previewEnable : Bool
     }
 
 
@@ -210,6 +212,7 @@ type Msg
     | ChangePenColor String
     | ChangePenDistance Float
     | ChangePenType String
+    | SwitchPreviewEnable
 
 
 
@@ -295,6 +298,9 @@ update msg model =
 
         ChangePenType penType ->
             ( { model | option = updateOption model.option "penType" penType }, Cmd.none )
+
+        SwitchPreviewEnable ->
+            ( { model | option = updateOption model.option "previewEnable" "" }, Cmd.none )
 
         TimeDelta _ ->
             let
@@ -688,7 +694,18 @@ view model =
                             []
                         , Html.span [ style "font-size" "20px" ] [ Html.text "円錐" ]
                         ]
-                    , div [] [ Html.button [ onMouseDown CloseOptionModal, style "font-size" "24px" ] [ Html.text "Close" ] ]
+                    , div []
+                        [ Html.text "描画プレビュー表示\u{3000}"
+                        , Html.input
+                            [ type_ "checkbox"
+                            , checked model.option.previewEnable
+                            , onInput (\_ -> SwitchPreviewEnable)
+                            ]
+                            []
+                        ]
+                    , div
+                        []
+                        [ Html.button [ onMouseDown CloseOptionModal, style "font-size" "24px" ] [ Html.text "Close" ] ]
                     ]
 
             else
@@ -701,7 +718,7 @@ view model =
         , onMouseUp DisableIsClick
         ]
         [ Scene3d.custom
-            { entities = [ floor ] ++ createTreeEntities model ++ createCloudEntities ++ createFigureEntities model.points model.numPoints
+            { entities = [ floor ] ++ createTreeEntities model ++ createPreviewEntities model ++ createCloudEntities ++ createFigureEntities model.points model.numPoints
             , lights = Scene3d.twoLights lightBulb overheadLighting
             , camera = camera
             , background = Scene3d.backgroundColor Color.lightBlue
@@ -818,6 +835,9 @@ updateOption option select value =
         "penType" ->
             { option | penType = value }
 
+        "previewEnable" ->
+            { option | previewEnable = not option.previewEnable }
+
         _ ->
             option
 
@@ -930,13 +950,126 @@ createFigureEntities points n =
                                         firstPoint.size
                                             * 0.25
                                     )
-                                    (Point3d.meters firstPoint.coord.x firstPoint.coord.y firstPoint.coord.z)
+                                    (convertToPoint3d firstPoint.coord)
 
                 Nothing ->
                     Scene3d.blockWithShadow material (Block3d.centeredOn (Frame3d.atPoint (Point3d.meters 0 0 0)) ( Length.meters 0, Length.meters 0, Length.meters 0 ))
     in
     if n > 0 then
         figureEntity :: createFigureEntities (List.drop 1 points) (n - 1)
+
+    else
+        []
+
+
+createPreviewEntities model =
+    let
+        hexToRgb hex =
+            let
+                red =
+                    case Hex.fromString (String.slice 1 3 hex) of
+                        Ok intValue ->
+                            toFloat intValue / 255
+
+                        Err _ ->
+                            0.0
+
+                green =
+                    case Hex.fromString (String.slice 3 5 hex) of
+                        Ok intValue ->
+                            toFloat intValue / 255
+
+                        Err _ ->
+                            0.0
+
+                blue =
+                    case Hex.fromString (String.slice 5 7 hex) of
+                        Ok intValue ->
+                            toFloat intValue / 255
+
+                        Err _ ->
+                            0.0
+            in
+            Color.rgb red green blue
+
+        material =
+            Material.nonmetal
+                { baseColor = hexToRgb model.option.penColor
+                , roughness = 1.0
+                }
+
+        entityCoord =
+            addPoints model.eyePoint <|
+                multiplePoints model.focalVector model.option.penDistance
+    in
+    if model.option.previewEnable == True then
+        case model.option.penType of
+            "sphere" ->
+                [ Scene3d.sphere material <|
+                    Sphere3d.withRadius
+                        (Length.centimeters <|
+                            model.option.penSize
+                                * 0.25
+                        )
+                        (convertToPoint3d entityCoord)
+                ]
+
+            "cube" ->
+                [ Scene3d.blockWithShadow material <|
+                    Block3d.centeredOn (Frame3d.atPoint (convertToPoint3d entityCoord))
+                        ( Length.meters <|
+                            model.option.penSize
+                                * 0.005
+                        , Length.meters <|
+                            model.option.penSize
+                                * 0.005
+                        , Length.meters <|
+                            model.option.penSize
+                                * 0.005
+                        )
+                ]
+
+            "cylinder" ->
+                [ Scene3d.cylinder material
+                    (Cylinder3d.centeredOn (convertToPoint3d entityCoord)
+                        Direction3d.z
+                        { length =
+                            Length.meters <|
+                                model.option.penSize
+                                    * 0.0025
+                        , radius =
+                            Length.meters <|
+                                model.option.penSize
+                                    * 0.0025
+                        }
+                    )
+                ]
+
+            "cone" ->
+                [ Scene3d.cone material
+                    (Cone3d.startingAt (convertToPoint3d entityCoord)
+                        Direction3d.z
+                        { length =
+                            Length.meters <|
+                                model.option.penSize
+                                    * 0.0025
+                        , radius =
+                            Length.meters <|
+                                model.option.penSize
+                                    * 0.0025
+                        }
+                    )
+                ]
+
+            _ ->
+                [ Scene3d.sphere material <|
+                    Sphere3d.withRadius
+                        (Length.centimeters <|
+                            model.option.penSize
+                                * 0.25
+                        )
+                        (convertToPoint3d entityCoord)
+                ]
 
     else
         []

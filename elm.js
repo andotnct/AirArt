@@ -7124,7 +7124,7 @@ var $author$project$AirArt$init = function (_v0) {
 			isViewMoveEnable: false,
 			keyStatus: {down: false, hlock: false, left: false, right: false, shift: false, space: false, up: false, vlock: false},
 			numPoints: 0,
-			option: {moveSpeed: 30, penColor: '#000000', penDistance: 20.0, penSize: 200.0, penType: 'sphere', viewMoveSpeed: 10.0},
+			option: {moveSpeed: 30, penColor: '#000000', penDistance: 20.0, penSize: 200.0, penType: 'sphere', previewEnable: false, viewMoveSpeed: 10.0},
 			points: _List_Nil,
 			randomNumbersList: _List_Nil,
 			width: $ianmackenzie$elm_units$Quantity$zero
@@ -7980,6 +7980,7 @@ var $author$project$AirArt$updateKeyStatus = F3(
 				return keys;
 		}
 	});
+var $elm$core$Basics$not = _Basics_not;
 var $elm$core$String$toFloat = _String_toFloat;
 var $elm$core$Maybe$withDefault = F2(
 	function (_default, maybe) {
@@ -8037,6 +8038,10 @@ var $author$project$AirArt$updateOption = F3(
 				return _Utils_update(
 					option,
 					{penType: value});
+			case 'previewEnable':
+				return _Utils_update(
+					option,
+					{previewEnable: !option.previewEnable});
 			default:
 				return option;
 		}
@@ -8150,6 +8155,14 @@ var $author$project$AirArt$update = F2(
 						model,
 						{
 							option: A3($author$project$AirArt$updateOption, model.option, 'penType', penType)
+						}),
+					$elm$core$Platform$Cmd$none);
+			case 'SwitchPreviewEnable':
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{
+							option: A3($author$project$AirArt$updateOption, model.option, 'previewEnable', '')
 						}),
 					$elm$core$Platform$Cmd$none);
 			case 'TimeDelta':
@@ -8290,6 +8303,7 @@ var $author$project$AirArt$ChangeViewMoveSpeed = function (a) {
 var $author$project$AirArt$CloseOptionModal = {$: 'CloseOptionModal'};
 var $author$project$AirArt$DisableIsClick = {$: 'DisableIsClick'};
 var $author$project$AirArt$RequestPointerLock = {$: 'RequestPointerLock'};
+var $author$project$AirArt$SwitchPreviewEnable = {$: 'SwitchPreviewEnable'};
 var $ianmackenzie$elm_3d_scene$Scene3d$BackgroundColor = function (a) {
 	return {$: 'BackgroundColor', a: a};
 };
@@ -8939,7 +8953,6 @@ var $elm$core$List$any = F2(
 			}
 		}
 	});
-var $elm$core$Basics$not = _Basics_not;
 var $elm$core$List$all = F2(
 	function (isOkay, list) {
 		return !A2(
@@ -12388,7 +12401,7 @@ var $author$project$AirArt$createFigureEntities = F2(
 							A2(
 								$ianmackenzie$elm_geometry$Sphere3d$withRadius,
 								$ianmackenzie$elm_units$Length$centimeters(firstPoint.size * 0.25),
-								A3($ianmackenzie$elm_geometry$Point3d$meters, firstPoint.coord.x, firstPoint.coord.y, firstPoint.coord.z)));
+								$author$project$AirArt$convertToPoint3d(firstPoint.coord)));
 				}
 			} else {
 				return A2(
@@ -12412,6 +12425,124 @@ var $author$project$AirArt$createFigureEntities = F2(
 				A2($elm$core$List$drop, 1, points),
 				n - 1)) : _List_Nil;
 	});
+var $author$project$AirArt$createPreviewEntities = function (model) {
+	var hexToRgb = function (hex) {
+		var red = function () {
+			var _v3 = $rtfeldman$elm_hex$Hex$fromString(
+				A3($elm$core$String$slice, 1, 3, hex));
+			if (_v3.$ === 'Ok') {
+				var intValue = _v3.a;
+				return intValue / 255;
+			} else {
+				return 0.0;
+			}
+		}();
+		var green = function () {
+			var _v2 = $rtfeldman$elm_hex$Hex$fromString(
+				A3($elm$core$String$slice, 3, 5, hex));
+			if (_v2.$ === 'Ok') {
+				var intValue = _v2.a;
+				return intValue / 255;
+			} else {
+				return 0.0;
+			}
+		}();
+		var blue = function () {
+			var _v1 = $rtfeldman$elm_hex$Hex$fromString(
+				A3($elm$core$String$slice, 5, 7, hex));
+			if (_v1.$ === 'Ok') {
+				var intValue = _v1.a;
+				return intValue / 255;
+			} else {
+				return 0.0;
+			}
+		}();
+		return A3($avh4$elm_color$Color$rgb, red, green, blue);
+	};
+	var material = $ianmackenzie$elm_3d_scene$Scene3d$Material$nonmetal(
+		{
+			baseColor: hexToRgb(model.option.penColor),
+			roughness: 1.0
+		});
+	var entityCoord = A2(
+		$author$project$AirArt$addPoints,
+		model.eyePoint,
+		A2($author$project$AirArt$multiplePoints, model.focalVector, model.option.penDistance));
+	if (model.option.previewEnable) {
+		var _v0 = model.option.penType;
+		switch (_v0) {
+			case 'sphere':
+				return _List_fromArray(
+					[
+						A2(
+						$ianmackenzie$elm_3d_scene$Scene3d$sphere,
+						material,
+						A2(
+							$ianmackenzie$elm_geometry$Sphere3d$withRadius,
+							$ianmackenzie$elm_units$Length$centimeters(model.option.penSize * 0.25),
+							$author$project$AirArt$convertToPoint3d(entityCoord)))
+					]);
+			case 'cube':
+				return _List_fromArray(
+					[
+						A2(
+						$ianmackenzie$elm_3d_scene$Scene3d$blockWithShadow,
+						material,
+						A2(
+							$ianmackenzie$elm_geometry$Block3d$centeredOn,
+							$ianmackenzie$elm_geometry$Frame3d$atPoint(
+								$author$project$AirArt$convertToPoint3d(entityCoord)),
+							_Utils_Tuple3(
+								$ianmackenzie$elm_units$Length$meters(model.option.penSize * 0.005),
+								$ianmackenzie$elm_units$Length$meters(model.option.penSize * 0.005),
+								$ianmackenzie$elm_units$Length$meters(model.option.penSize * 0.005))))
+					]);
+			case 'cylinder':
+				return _List_fromArray(
+					[
+						A2(
+						$ianmackenzie$elm_3d_scene$Scene3d$cylinder,
+						material,
+						A3(
+							$ianmackenzie$elm_geometry$Cylinder3d$centeredOn,
+							$author$project$AirArt$convertToPoint3d(entityCoord),
+							$ianmackenzie$elm_geometry$Direction3d$z,
+							{
+								length: $ianmackenzie$elm_units$Length$meters(model.option.penSize * 0.0025),
+								radius: $ianmackenzie$elm_units$Length$meters(model.option.penSize * 0.0025)
+							}))
+					]);
+			case 'cone':
+				return _List_fromArray(
+					[
+						A2(
+						$ianmackenzie$elm_3d_scene$Scene3d$cone,
+						material,
+						A3(
+							$ianmackenzie$elm_geometry$Cone3d$startingAt,
+							$author$project$AirArt$convertToPoint3d(entityCoord),
+							$ianmackenzie$elm_geometry$Direction3d$z,
+							{
+								length: $ianmackenzie$elm_units$Length$meters(model.option.penSize * 0.0025),
+								radius: $ianmackenzie$elm_units$Length$meters(model.option.penSize * 0.0025)
+							}))
+					]);
+			default:
+				return _List_fromArray(
+					[
+						A2(
+						$ianmackenzie$elm_3d_scene$Scene3d$sphere,
+						material,
+						A2(
+							$ianmackenzie$elm_geometry$Sphere3d$withRadius,
+							$ianmackenzie$elm_units$Length$centimeters(model.option.penSize * 0.25),
+							$author$project$AirArt$convertToPoint3d(entityCoord)))
+					]);
+		}
+	} else {
+		return _List_Nil;
+	}
+};
 var $avh4$elm_color$Color$brown = A4($avh4$elm_color$Color$RgbaSpace, 193 / 255, 125 / 255, 17 / 255, 1.0);
 var $avh4$elm_color$Color$green = A4($avh4$elm_color$Color$RgbaSpace, 115 / 255, 210 / 255, 22 / 255, 1.0);
 var $author$project$AirArt$randomNumbersList2Coords = F2(
@@ -14760,6 +14891,25 @@ var $author$project$AirArt$view = function (model) {
 				_List_Nil,
 				_List_fromArray(
 					[
+						$elm$html$Html$text('描画プレビュー表示\u3000'),
+						A2(
+						$elm$html$Html$input,
+						_List_fromArray(
+							[
+								$elm$html$Html$Attributes$type_('checkbox'),
+								$elm$html$Html$Attributes$checked(model.option.previewEnable),
+								$elm$html$Html$Events$onInput(
+								function (_v4) {
+									return $author$project$AirArt$SwitchPreviewEnable;
+								})
+							]),
+						_List_Nil)
+					])),
+				A2(
+				$elm$html$Html$div,
+				_List_Nil,
+				_List_fromArray(
+					[
 						A2(
 						$elm$html$Html$button,
 						_List_fromArray(
@@ -14860,8 +15010,10 @@ var $author$project$AirArt$view = function (model) {
 						_Utils_ap(
 							$author$project$AirArt$createTreeEntities(model),
 							_Utils_ap(
-								$author$project$AirArt$createCloudEntities,
-								A2($author$project$AirArt$createFigureEntities, model.points, model.numPoints)))),
+								$author$project$AirArt$createPreviewEntities(model),
+								_Utils_ap(
+									$author$project$AirArt$createCloudEntities,
+									A2($author$project$AirArt$createFigureEntities, model.points, model.numPoints))))),
 					exposure: $ianmackenzie$elm_3d_scene$Scene3d$exposureValue(6),
 					lights: A2($ianmackenzie$elm_3d_scene$Scene3d$twoLights, lightBulb, overheadLighting),
 					toneMapping: $ianmackenzie$elm_3d_scene$Scene3d$noToneMapping,
