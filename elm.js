@@ -8280,12 +8280,37 @@ var $author$project$AirArt$update = F2(
 				var dy = msg.b;
 				var dyFloat = ($ianmackenzie$elm_units$Pixels$toFloat(dy) * model.option.viewMoveSpeed) * 0.05;
 				var dxFloat = ($ianmackenzie$elm_units$Pixels$toFloat(dx) * model.option.viewMoveSpeed) * 0.05;
-				var angle3D = ((dyFloat / 100) * model.option.viewMoveSpeed) * 0.05;
-				var angle2D = ((-(dxFloat / 100)) * model.option.viewMoveSpeed) * 0.05;
+				var axisY = {x: 0.0, y: 1.0, z: 0.0};
+				var axisX = {x: 1.0, y: 0.0, z: 0.0};
+				var angleY = ((dyFloat / 100) * model.option.viewMoveSpeed) * 0.05;
+				var halfAngleY = angleY / 2.0;
+				var wY = $elm$core$Basics$cos(halfAngleY);
+				var xY = $elm$core$Basics$sin(halfAngleY) * axisY.x;
+				var yY = $elm$core$Basics$sin(halfAngleY) * axisY.y;
+				var zY = $elm$core$Basics$sin(halfAngleY) * axisY.z;
+				var angleX = ((-(dxFloat / 100)) * model.option.viewMoveSpeed) * 0.05;
+				var halfAngleX = angleX / 2.0;
+				var wX = $elm$core$Basics$cos(halfAngleX);
+				var xX = $elm$core$Basics$sin(halfAngleX) * axisX.x;
+				var yX = $elm$core$Basics$sin(halfAngleX) * axisX.y;
+				var zX = $elm$core$Basics$sin(halfAngleX) * axisX.z;
+				var w = (((wY * wX) - (xY * xX)) - (yY * yX)) - (zY * zX);
+				var x = (((wY * xX) + (xY * wX)) + (yY * zX)) - (zY * yX);
+				var y = (((wY * yX) - (xY * zX)) + (yY * wX)) + (zY * xX);
+				var r33 = 1.0 - (2.0 * ((x * x) + (y * y)));
+				var z = (((wY * zX) + (xY * yX)) - (yY * xX)) + (zY * wX);
+				var r11 = 1.0 - (2.0 * ((y * y) + (z * z)));
+				var r12 = 2.0 * ((x * y) - (z * w));
+				var r13 = 2.0 * ((x * z) + (y * w));
+				var r21 = 2.0 * ((x * y) + (z * w));
+				var r22 = 1.0 - (2.0 * ((x * x) + (z * z)));
+				var r23 = 2.0 * ((y * z) - (x * w));
+				var r31 = 2.0 * ((x * z) - (y * w));
+				var r32 = 2.0 * ((y * z) + (x * w));
 				var newFocalVector = model.isViewMoveEnable ? {
-					x: ((!model.keyStatus.vlock) && (!model.isOptionOpen)) ? ((model.focalVector.x * $elm$core$Basics$cos(angle2D)) - (model.focalVector.y * $elm$core$Basics$sin(angle2D))) : model.focalVector.x,
-					y: ((!model.keyStatus.vlock) && (!model.isOptionOpen)) ? ((model.focalVector.x * $elm$core$Basics$sin(angle2D)) + (model.focalVector.y * $elm$core$Basics$cos(angle2D))) : model.focalVector.y,
-					z: ((!model.keyStatus.hlock) && (!model.isOptionOpen)) ? (A3($elm$core$Basics$clamp, -1.0, 1.0, model.focalVector.z) - angle3D) : model.focalVector.z
+					x: ((!model.keyStatus.vlock) && (!model.isOptionOpen)) ? ((model.focalVector.x * $elm$core$Basics$cos(angleX)) - (model.focalVector.y * $elm$core$Basics$sin(angleX))) : model.focalVector.x,
+					y: ((!model.keyStatus.vlock) && (!model.isOptionOpen)) ? ((model.focalVector.x * $elm$core$Basics$sin(angleX)) + (model.focalVector.y * $elm$core$Basics$cos(angleX))) : model.focalVector.y,
+					z: ((!model.keyStatus.hlock) && (!model.isOptionOpen)) ? (A3($elm$core$Basics$clamp, -1.0, 1.0, model.focalVector.z) - angleY) : model.focalVector.z
 				} : model.focalVector;
 				return _Utils_Tuple2(
 					_Utils_update(
