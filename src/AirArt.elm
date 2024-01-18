@@ -6,10 +6,10 @@ import Browser
 import Browser.Dom
 import Browser.Events
 import Camera3d
-import Color exposing (Color)
-import Cone3d exposing (Cone3d)
-import Cylinder3d exposing (Cylinder3d)
-import Direction3d exposing (Direction3d)
+import Color
+import Cone3d
+import Cylinder3d
+import Direction3d
 import Frame3d
 import Hex
 import Html exposing (Html, div, pre)
@@ -18,20 +18,17 @@ import Html.Events exposing (onInput, onMouseDown, onMouseUp)
 import Illuminance
 import Json.Decode as Decode exposing (Decoder)
 import Length
-import LineSegment3d exposing (LineSegment3d, fromEndpoints)
 import LuminousFlux
 import Pixels
-import Point3d exposing (Point3d)
+import Point3d
 import Quantity exposing (Quantity)
 import Random
-import Scene3d exposing (Entity, lineSegment)
-import Scene3d.Light as Light exposing (Chromaticity, Light)
+import Scene3d
+import Scene3d.Light as Light
 import Scene3d.Material as Material
-import SolidAngle
 import Sphere3d
-import String exposing (left)
+import String
 import Task
-import Temperature
 import Viewpoint3d
 
 
@@ -431,29 +428,108 @@ update msg model =
                 dyFloat =
                     Pixels.toFloat dy * model.option.viewMoveSpeed * 0.05
 
-                angle2D =
+                angleX =
                     -(dxFloat / 100) * model.option.viewMoveSpeed * 0.05
 
-                angle3D =
+                angleY =
                     dyFloat / 100 * model.option.viewMoveSpeed * 0.05
+
+                -- Quartenion
+                axisX =
+                    { x = 1.0, y = 0.0, z = 0.0 }
+
+                axisY =
+                    { x = 0.0, y = 1.0, z = 0.0 }
+
+                halfAngleX =
+                    angleX / 2.0
+
+                halfAngleY =
+                    angleY / 2.0
+
+                wX =
+                    cos halfAngleX
+
+                xX =
+                    sin halfAngleX * axisX.x
+
+                yX =
+                    sin halfAngleX * axisX.y
+
+                zX =
+                    sin halfAngleX * axisX.z
+
+                wY =
+                    cos halfAngleY
+
+                xY =
+                    sin halfAngleY * axisY.x
+
+                yY =
+                    sin halfAngleY * axisY.y
+
+                zY =
+                    sin halfAngleY * axisY.z
+
+                x =
+                    wY * xX + xY * wX + yY * zX - zY * yX
+
+                y =
+                    wY * yX - xY * zX + yY * wX + zY * xX
+
+                z =
+                    wY * zX + xY * yX - yY * xX + zY * wX
+
+                w =
+                    wY * wX - xY * xX - yY * yX - zY * zX
+
+                r11 =
+                    1.0 - 2.0 * (y * y + z * z)
+
+                r12 =
+                    2.0 * (x * y - z * w)
+
+                r13 =
+                    2.0 * (x * z + y * w)
+
+                r21 =
+                    2.0 * (x * y + z * w)
+
+                r22 =
+                    1.0 - 2.0 * (x * x + z * z)
+
+                r23 =
+                    2.0 * (y * z - x * w)
+
+                r31 =
+                    2.0 * (x * z - y * w)
+
+                r32 =
+                    2.0 * (y * z + x * w)
+
+                r33 =
+                    1.0 - 2.0 * (x * x + y * y)
 
                 newFocalVector =
                     if model.isViewMoveEnable == True then
                         { x =
                             if model.keyStatus.vlock == False && model.isOptionOpen == False then
-                                model.focalVector.x * cos angle2D - model.focalVector.y * sin angle2D
+                                -- r11 * model.focalVector.x + r12 * model.focalVector.y + r13 * model.focalVector.z
+                                model.focalVector.x * cos angleX - model.focalVector.y * sin angleX
 
                             else
                                 model.focalVector.x
                         , y =
                             if model.keyStatus.vlock == False && model.isOptionOpen == False then
-                                model.focalVector.x * sin angle2D + model.focalVector.y * cos angle2D
+                                -- r21 * model.focalVector.x + r22 * model.focalVector.y + r23 * model.focalVector.z
+                                model.focalVector.x * sin angleX + model.focalVector.y * cos angleX
 
                             else
                                 model.focalVector.y
                         , z =
                             if model.keyStatus.hlock == False && model.isOptionOpen == False then
-                                clamp -1.0 1.0 model.focalVector.z - angle3D
+                                -- r31 * model.focalVector.x + r32 * model.focalVector.y + r33 * model.focalVector.z
+                                clamp -1.0 1.0 model.focalVector.z - angleY
 
                             else
                                 model.focalVector.z
